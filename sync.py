@@ -18,6 +18,7 @@ import shutil
 import ssl
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -27,13 +28,29 @@ META_FILE = ROOT / ".sync-meta.json"
 _CTX = ssl.create_default_context()
 
 
-def _http_get(url, token=None, accept="application/vnd.github+json"):
+def _http_get(url, token=None, accept="application/vnd.github+json", anon_on_auth_error=False):
+    """GET a URL and return bytes.
+
+    If anon_on_auth_error is set and the token yields 401/403, retry
+    anonymously. Public gists / API resources are readable without auth; the
+    Actions-injected GITHUB_TOKEN has no `gist` scope and returns 403 on gists.
+    """
     headers = {"User-Agent": "sing-box-config-sync", "Accept": accept}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=180, context=_CTX) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=180, context=_CTX) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as exc:
+        if anon_on_auth_error and token and exc.code in (401, 403):
+            print(f"  (token auth got {exc.code}; retrying anonymously)")
+            anon_req = urllib.request.Request(url, headers={
+                "User-Agent": "sing-box-config-sync", "Accept": accept,
+            })
+            with urllib.request.urlopen(anon_req, timeout=180, context=_CTX) as resp:
+                return resp.read()
+        raise
 
 
 def _run(cmd, cwd=None):
@@ -95,7 +112,8 @@ def sync_github(src, token):
 def sync_gist(src, token):
     gid = src["gist_id"]
     dest = ROOT / src["dest"]
-    data = json.loads(_http_get(f"https://api.github.com/gists/{gid}", token))
+    data = json.loads(_http_get(f"https://api.github.com/gists/{gid}", token,
+                                anon_on_auth_error=True))
     tmp = ROOT / f".tmp-{src['name']}"
     if tmp.exists():
         shutil.rmtree(tmp)
@@ -106,7 +124,8 @@ def sync_gist(src, token):
     for fname, finfo in files.items():
         content = finfo.get("content")
         if content is None or finfo.get("truncated"):
-            raw = _http_get(finfo["raw_url"], token, accept="text/plain")
+            raw = _http_get(finfo["raw_url"], token, accept="text/plain",
+                            anon_on_auth_error=True)
             (tmp / fname).write_bytes(raw)
         else:
             (tmp / fname).write_text(content, encoding="utf-8")

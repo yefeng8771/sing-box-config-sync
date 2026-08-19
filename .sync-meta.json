@@ -1,0 +1,36 @@
+{
+  "repcz-tool": {
+    "type": "github",
+    "repo": "Repcz/Tool",
+    "branch": "X",
+    "path": "sing-box",
+    "commit": "982fadb89c3f803490f63ad5ba11a2b0ea11bb0e",
+    "files": 151,
+    "url": "https://github.com/Repcz/Tool/tree/X/sing-box"
+  },
+  "pk-box": {
+    "type": "github",
+    "repo": "huixiao666/pk-box",
+    "branch": "main",
+    "path": "beta",
+    "commit": "2cad0142bd43e7daa77033d838cb7368c09d113c",
+    "files": 20,
+    "url": "https://github.com/huixiao666/pk-box/tree/main/beta"
+  },
+  "gist-chizi": {
+    "type": "gist",
+    "gist_id": "35f59df7b17bf66ea988d775aaf76152",
+    "version": "caedc5a3f36988e49355194093ed56d283010b51",
+    "files": 1,
+    "url": "https://gist.github.com/35f59df7b17bf66ea988d775aaf76152"
+  },
+  "ref1nd-docs": {
+    "type": "github",
+    "repo": "reF1nd/sing-box",
+    "branch": "reF1nd-testing",
+    "path": "docs",
+    "commit": "15f4bdbbd83e423cbf74358c0c2bb9b2b361ab1c",
+    "files": 304,
+    "url": "https://github.com/reF1nd/sing-box/tree/reF1nd-testing/docs"
+  }
+}

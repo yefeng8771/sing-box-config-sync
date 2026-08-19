@@ -1,0 +1,38 @@
+{
+  "sources": [
+    {
+      "name": "repcz-tool",
+      "type": "github",
+      "repo": "Repcz/Tool",
+      "branch": "X",
+      "path": "sing-box",
+      "dest": "sources/repcz-tool",
+      "desc": "规则集 (Rules/) + v1.14.x 客户端/服务端配置模板"
+    },
+    {
+      "name": "pk-box",
+      "type": "github",
+      "repo": "huixiao666/pk-box",
+      "branch": "main",
+      "path": "beta",
+      "dest": "sources/pk-box",
+      "desc": "多版本 1.14.0-beta.* 配置模板 (含中文文件名与 注释/ 子目录)"
+    },
+    {
+      "name": "gist-chizi",
+      "type": "gist",
+      "gist_id": "35f59df7b17bf66ea988d775aaf76152",
+      "dest": "sources/gist-chizi",
+      "desc": "CHIZI-0618 自用 config.jsonc (DNS 部分替换为公共 DNS)"
+    },
+    {
+      "name": "ref1nd-docs",
+      "type": "github",
+      "repo": "reF1nd/sing-box",
+      "branch": "reF1nd-testing",
+      "path": "docs",
+      "dest": "sources/ref1nd-docs",
+      "desc": "reF1nd 分支官方文档 (中英 .md + schema.json + 安装脚本)"
+    }
+  ]
+}

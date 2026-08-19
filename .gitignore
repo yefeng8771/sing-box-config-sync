@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# sync.py 临时工作目录
+/.tmp-*/
+
+# 本地环境变量
+.env

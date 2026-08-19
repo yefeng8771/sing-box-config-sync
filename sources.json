@@ -33,6 +33,14 @@
       "path": "docs",
       "dest": "sources/ref1nd-docs",
       "desc": "reF1nd 分支官方文档 (中英 .md + schema.json + 安装脚本)"
+    },
+    {
+      "name": "boxproxy-box",
+      "type": "github",
+      "repo": "boxproxy/box",
+      "branch": "test",
+      "dest": "sources/boxproxy-box",
+      "desc": "boxproxy/box @ test — Android Root 透明代理模块 (Box for Root, Magisk/KernelSU/APatch), mihomo/sing-box/xray 统一管理"
     }
   ]
 }

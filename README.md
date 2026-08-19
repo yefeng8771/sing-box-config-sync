@@ -13,6 +13,7 @@
 | `sources/pk-box/` | github | [`huixiao666/pk-box@main` / beta`](https://github.com/huixiao666/pk-box/tree/main/beta) | 多版本 1.14.0-beta.* 配置模板(含中文文件名与 `注释/` 子目录) |
 | `sources/gist-chizi/` | gist | [gist `35f59df7…`](https://gist.github.com/CHIZI-0618/35f59df7b17bf66ea988d775aaf76152) | CHIZI-0618 自用 `config.jsonc`(DNS 部分替换为公共 DNS) |
 | `sources/ref1nd-docs/` | github | [`reF1nd/sing-box@reF1nd-testing` / docs`](https://github.com/reF1nd/sing-box/tree/reF1nd-testing/docs) | reF1nd 分支官方文档(中英 `.md` + `schema.json` + 安装脚本) |
+| `sources/boxproxy-box/` | github | [`boxproxy/box@test`](https://github.com/boxproxy/box/tree/test) | Android Root 透明代理模块(Box for Root,Magisk/KernelSU/APatch),mihomo/sing-box/xray 统一管理(整仓镜像) |
 
 ## 目录结构
 
@@ -28,15 +29,19 @@ sources/
 │   └── 注释/         带注释的配置
 ├── gist-chizi/      ← gist 35f59df7... (CHIZI-0618)
 │   └── config.jsonc 自用配置 (DNS 替换为公共 DNS)
-└── ref1nd-docs/     ← github.com/reF1nd/sing-box @ reF1nd-testing / docs/
-    └── ...          官方文档 (中英 .md + schema.json + 安装脚本)
+├── ref1nd-docs/     ← github.com/reF1nd/sing-box @ reF1nd-testing / docs/
+│   └── ...          官方文档 (中英 .md + schema.json + 安装脚本)
+└── boxproxy-box/   ← github.com/boxproxy/box @ test (整仓镜像)
+    ├── module.prop / customize.sh / update.json   Magisk/KSU 模块定义
+    ├── box/                                        核心: settings.ini + 配置 + scripts/
+    └── ...          box.service / box.iptables / box.tool 生命周期与透明代理
 ```
 
 ## 工作机制
 
 1. **`sources.json`** —— 声明式源清单(类型/仓库/分支/路径/目标目录/说明)。
 2. **`sync.py`** —— 同步脚本:
-   - `github` 类型:用 `git clone --filter=blob:none --sparse --depth=1` 仅拉取目标子目录,复制到 `sources/<name>/`。
+   - `github` 类型:用 `git clone --filter=blob:none --sparse --depth=1` 仅拉取目标子目录,复制到 `sources/<name>/`。**`path` 留空**则镜像整个分支(`sparse-checkout disable`),整仓复制到 `sources/<name>/`(自动排除上游 `.git`)。
    - `gist` 类型:用 Gist API 拉取文件,写入 `sources/<name>/`。带 token 时若返回 401/403(如 Actions 的 `GITHUB_TOKEN` 无 gist scope)会**自动回退匿名**重试(公开 gist 匿名可读)。
    - 每个源的 commit / version 记录到 `.sync-meta.json`。
    - 采用「临时目录 → 原子替换」写法,某源拉取失败时其旧内容保持不变。

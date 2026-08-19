@@ -72,7 +72,9 @@ def safe_replace(src_dir: Path, dest: Path):
     tmp_dest = dest.parent / (dest.name + ".sync-tmp")
     if tmp_dest.exists():
         shutil.rmtree(tmp_dest)
-    shutil.copytree(src_dir, tmp_dest)
+    # Always exclude .git: for whole-repo mirrors (empty `path`) the source
+    # dir is the clone root and would otherwise copy the upstream's .git.
+    shutil.copytree(src_dir, tmp_dest, ignore=shutil.ignore_patterns(".git"))
     if dest.exists():
         shutil.rmtree(dest)
     tmp_dest.rename(dest)
@@ -93,11 +95,16 @@ def sync_github(src, token):
           "-b", branch, url, str(work)])
     if path:
         _run(["git", "-C", str(work), "sparse-checkout", "set", path])
+    else:
+        # path empty => mirror the whole branch tree: drop sparse so every
+        # blob/dir is materialized (clone used --filter=blob:none + --sparse).
+        _run(["git", "-C", str(work), "sparse-checkout", "disable"])
     commit = _run(["git", "-C", str(work), "rev-parse", "HEAD"]).strip()
     src_dir = work / path if path else work
     if not src_dir.exists():
         raise RuntimeError(f"path '{path}' not found in {repo}@{branch}")
-    file_count = sum(1 for _ in src_dir.rglob("*") if _.is_file())
+    file_count = sum(1 for _ in src_dir.rglob("*")
+                     if _.is_file() and ".git" not in _.parts)
     safe_replace(src_dir, dest)
     shutil.rmtree(work, ignore_errors=True)
     tree_url = f"https://github.com/{repo}/tree/{branch}"

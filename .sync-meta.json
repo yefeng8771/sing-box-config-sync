@@ -32,5 +32,14 @@
     "commit": "15f4bdbbd83e423cbf74358c0c2bb9b2b361ab1c",
     "files": 304,
     "url": "https://github.com/reF1nd/sing-box/tree/reF1nd-testing/docs"
+  },
+  "boxproxy-box": {
+    "type": "github",
+    "repo": "boxproxy/box",
+    "branch": "test",
+    "path": "",
+    "commit": "3b9fa587ad557b2bfb7d35ff43c3fb4db1bbf5c4",
+    "files": 31,
+    "url": "https://github.com/boxproxy/box/tree/test"
   }
 }

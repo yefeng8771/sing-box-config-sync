@@ -1,0 +1,28 @@
+{
+  "version": 4,
+  "rules": [
+    {
+      "domain_suffix": [
+        "hybgzs.com",
+        "198707.xyz",
+        "yi.uy",
+        "proxyscrape.com",
+        "jsdelivr.net",
+        "githubusercontent.com"
+      ]
+    },
+    {
+      "domain_suffix": [
+        "lancache.steamcontent.com",
+        "10099.com.cn",
+        "msftconnecttest.com",
+        "msftncsi.com",
+        "local",
+        "lan",
+        "home",
+        "internal",
+        "corp"
+      ]
+    }
+  ]
+}

@@ -23,6 +23,16 @@
         "internal",
         "corp"
       ]
+    },
+    {
+      "domain_keyword": [
+        "m-team"
+      ],
+      "domain_suffix": [
+        "m-team.cc",
+        "m-team.io",
+        "manfuz.co"
+      ]
     }
   ]
 }

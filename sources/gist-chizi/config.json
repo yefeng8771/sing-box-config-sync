@@ -168,16 +168,17 @@
       "type": "ebpf",
       "tag": "ebpf-in",
       "mode": "hybrid",
-      "dns_mode": "hijack",
       "bypass_rule_set": [
         "ChinaIP"
       ],
       "local": {
+        "dns_mode": "hijack",
         "ipv6_mode": "auto",
         "include_package": [],
         "exclude_package": []
       },
       "shared": {
+        "dns_mode": "hijack",
         "interface": [
           "wlan2"
         ],

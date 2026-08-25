@@ -80,18 +80,27 @@ CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-an
 GOARCH=arm64 GOOS=android make build
 ```
 
-配置中还需将日志级别设为 `debug`。调试构建每分钟输出一次 eBPF runtime-status
-JSON，并增加 `debug` 对象，其中包括：
+配置中还需将日志级别设为 `debug`。调试构建会在启动、停止，以及 redirect miss
+或 map 压力事件后输出 eBPF runtime-status JSON；30 秒内的多个事件会合并为一次
+采集。JSON 中增加 `debug` 对象，其中包括：
 
 - Go heap、stack、runtime 总内存、RSS、goroutine、GC 次数和 GC pause；
 - local TCP 清理、shared 压力轮询、shared flow 清理、attachment 自愈、IPv6
   路由探测和状态采集的执行次数、错误次数、总耗时、最大耗时和最近耗时；
-- 常规 map 条目数、容量、key/value 大小、内核 memlock、program/link ID 和
-  实际 attachment 健康状态。
+- 常规 map 条目数、容量、key/value 大小、内核 memlock、program/link ID、
+  实际 attachment 健康状态，以及每个 program 的运行次数、内核累计耗时、
+  平均 ns/run 和 recursion miss。
 
-普通 `with_ebpf` 构建仍保留正确性计数，并在 Debug 日志下每 10 分钟输出运行
-状态；Info 日志级别不会启动周期状态 reporter。Go runtime 和任务耗时采样只存在
-于 `ebpf_debug` 构建。
+普通 `with_ebpf` 构建仍保留正确性计数，并在 Debug 日志下每 10 分钟输出轻量
+运行状态，但不会遍历 Hash、LPM 或 LRU map 统计占用；Info 日志级别不会启动周期
+状态 reporter。完整 map 占用、Go runtime 和任务耗时采样只存在于 `ebpf_debug`
+构建。
+
+`ebpf_debug` 构建会在至少一个 eBPF inbound 运行期间临时启用内核
+`BPF_STATS_RUN_TIME`。这是衡量 BPF 数据面开销最直接的指标，但属于全系统内核
+统计并有可测量的额外开销，因此只应用于排障，不应用于日常 release 构建。低于
+5.8 的内核或拒绝该能力的 vendor 内核会继续启动，只是不提供 program runtime
+统计；能够读取 program 但统计失败时会在 `stats_error` 中记录原因。
 
 排查 local UDP 时，请重点检查 `local.backend.udp_cleanup_mode`、
 `udp_redirect_reservation_failures`，以及 `cgroup_udp_redirect`、
@@ -105,13 +114,20 @@ connected socket token 和 peer 状态重建 redirect 的次数。非零表示�
 
 ## CPU 和内存 profile
 
-`ebpf_debug` 构建中的 Go pprof 需要显式开启。启动时指定一个空闲端口：
+Go pprof 由 sing-box 自身提供，不要求 `ebpf_debug`。在配置中开启统一的 debug
+HTTP 入口：
 
-```sh
-SING_BOX_EBPF_PPROF_PORT=6060 sing-box run -c config.json
+```json
+{
+  "experimental": {
+    "debug": {
+      "listen": "127.0.0.1:6060"
+    }
+  }
+}
 ```
 
-服务只监听 `127.0.0.1`。Android 可转发到电脑：
+应只监听 `127.0.0.1`。Android 可转发到电脑：
 
 ```sh
 adb forward tcp:6060 tcp:6060
@@ -136,21 +152,13 @@ map 内存。后者需要结合 runtime-status 中的 `memlock_bytes`、program 
 再采集 `bpftool prog profile id <id>`；不要自行开启全局 BPF kernel statistics，
 它会影响整个系统。
 
-## 周期维护并非调试代码
+## 运行期维护
 
-下列任务用于保证长期运行正确性，在普通构建中也必须保留：
-
-| 任务 | 触发方式 | 用途 |
-|------|----------|------|
-| shared 压力轮询 | 每 5 秒 | 尽早发现 token 分配失败和 map 压力。 |
-| shared flow 清理 | 通常每 30 秒，压力下加快 | 回收孤立 token、reply 和 listener 状态，同时保留活跃 flow。 |
-| shared attachment 自愈 | 网络变化或每 30 秒 | 挂载新接口，并修复被外部删除的 TCX/clsact 和 `route_localnet`。 |
-| local TCP redirect 清理 | 每分钟 | 删除连接失败或 accept 中断后遗留的 connect 状态。 |
-| local IPv6 路由探测 | 网络变化后去抖触发 | 使 `local.ipv6_mode: auto` 跟随可用原生 IPv6。 |
-
-关闭这些任务会直接产生它们要排查的问题，例如 map 填满、redirect 状态过期或
-接口悄悄脱挂。应先通过 `ebpf_debug` 耗时计数和 pprof 确认具体开销；只有 profile
-和 runtime-status 都证明某项任务在目标内核上存在明显成本后，才调整执行间隔。
+shared flow 清理、attachment 自愈、local TCP 清理和 IPv6 路由探测用于保证长期
+运行正确性，在普通构建中也会启用。大部分工作由事件或 deadline 驱动；对于没有
+可靠用户态事件的内核状态，仅保留低频 watchdog。如果 CPU 占用呈周期性，请
+同时提供 `ebpf_debug` runtime-status 和 CPU profile，不要直接关闭这些任务；否则
+可能造成 map 耗尽、redirect 过期或接口脱挂。
 
 ## 隐私和打包
 

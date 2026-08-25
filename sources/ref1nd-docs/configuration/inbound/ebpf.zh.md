@@ -29,9 +29,10 @@ cgroup socket-address 程序拦截本机 socket，`shared` 数据路径使用 TC
   "mode": "local",
   "network": ["tcp", "udp"],
   "udp_timeout": "5m",
-  "dns_mode": "hijack",
+  "tcp_splice": false,
   "bypass_rule_set": ["geoip-cn"],
   "local": {
+    "dns_mode": "hijack",
     "cgroup_path": "",
     "ipv6_mode": "auto",
     "bypass_private_address": true,
@@ -45,6 +46,7 @@ cgroup socket-address 程序拦截本机 socket，`shared` 数据路径使用 TC
     "state_capacity": 0
   },
   "shared": {
+    "dns_mode": "hijack",
     "interface": [],
     "ipv6_mode": "always",
     "bypass_private_address": true,
@@ -54,7 +56,10 @@ cgroup socket-address 程序拦截本机 socket，`shared` 数据路径使用 TC
     "exclude_mac_address": [],
     "state_capacity": 0,
     "advanced": {
-      "tc_priority": 1
+      "tc_priority": 1,
+      "data_plane": "auto",
+      "routing_mark": 0,
+      "routing_table": 0
     }
   }
 }
@@ -82,19 +87,6 @@ eBPF 入站不使用[监听字段](/zh/configuration/shared/listen/)。内部监
 
 UDP 会话超时，默认值为 `5m`。
 
-### dns_mode
-
-控制目标端口 53 与绕过策略的顺序：
-
-| 值 | 行为 |
-|----|------|
-| `hijack` | 在私网和规则集绕过前拦截 DNS。 |
-| `respect_bypass` | 先执行私网和规则集绕过，再决定是否拦截 DNS。 |
-| `off` | 不拦截目标端口 53。 |
-
-默认值为 `hijack`。UID、协议、自身防回环、DHCP 和 shared 客户端筛选仍然
-先于 DNS 策略执行。此选项只捕获 TCP/UDP 53 端口，不等同于路由规则中的
-`hijack-dns` 动作。shared 模式启用 DNS 拦截时必须启用 UDP。
 
 ### bypass_rule_set
 
@@ -107,12 +99,46 @@ UDP 会话超时，默认值为 `5m`。
 本机真实地址的精确匹配仍然优先。FakeIP 与规则集 CIDR 重叠会在启动时告警；
 若它与未指定地址、回环、多播或内部重定向范围冲突，启动会直接拒绝该配置。
 
+### tcp_splice
+
+为符合条件的 TCP 连接启用实验性内核流转发，默认值为 `false`。
+
+仅处理进入当前 eBPF 入站、并由内建 `direct` 出站建立的连接，且两端必须都能安全
+还原为裸 TCP socket。UDP、代理出站、多路复用或加密传输、TLS 分片、TLS 伪装，
+以及存在不安全缓存状态的连接仍使用原有 Go copy。内核不支持 SOCKHASH 或
+`SK_SKB` 时也会自动回退，不会阻止 eBPF 入站启动。上游 power report recorder
+处于活动状态时，该连接也会回退，以保留完整的用户态归因和字节统计。
+
+该功能可减少长连接 DIRECT TCP 流量的用户态 CPU 和数据复制，但不同厂商内核的
+socket 激活与半关闭行为仍需实机验证，因此保持实验状态。完全由内核搬运的字节
+不会实时经过用户态统计包装器；sing-box 会在 splice 连接关闭时把累计的上传和
+下载字节补入连接与全局流量统计，因此活跃连接的显示值会暂时偏低。
+
 ### local
+
+#### local.dns_mode
+
+控制 local 数据路径对目标端口 53 的拦截顺序：
+
+| 值 | 行为 |
+|----|------|
+| `hijack` | 在 local UID/包名和目的地址绕过策略之前拦截。 |
+| `respect_policy` | 执行完整 local 策略，仅拦截最终仍应进入代理路径的流量。 |
+| `off` | 在 local 用户策略之前直接放行目标端口 53。 |
+
+默认值为 `hijack`。此时 UID/包名筛选、本机精确地址、私网绕过和
+`bypass_rule_set` 均不能绕过 53 端口；`respect_policy` 则正常遵守这些策略。
+自身与内部重定向防回环、协议选择、DHCP 安全放行、报文有效性以及
+`local.ipv6_mode: "off"` 在所有模式下仍是优先级更高的正确性门控。只处理
+`network` 已启用协议的 TCP/UDP 53，因此可使用仅 TCP 或仅 UDP 的配置。
+该选项不能识别 DoH/DoT，也不等同于路由规则中的 `hijack-dns` 动作。
 
 #### local.cgroup_path
 
 要拦截的 cgroup v2 绝对路径。留空时自动使用 cgroup v2 根目录。
-同一个 cgroup 路径同时只能由一个 eBPF 入站管理。
+每个 sing-box 进程只支持一个 `local` 或 `hybrid` eBPF 入站。该入站会为
+sing-box 自身创建的 socket 注册进程级保护，因此即使使用不同的 cgroup 路径，
+也不能再启动另一个 local 后端。
 
 #### local.ipv6_mode
 
@@ -130,9 +156,9 @@ shared 数据路径的 IPv6；shared 使用独立的 `shared.ipv6_mode`。
 #### local.bypass_private_address
 
 是否在 local 数据路径绕过内建私网、运营商级 NAT 和链路本地目的地址，默认值
-为 `true`。设置为 `false` 不会关闭协议、自身防回环、DHCP、未指定地址、回环、
-多播和本机真实地址精确匹配等安全绕过。在 `dns_mode: "hijack"` 下，目标端口
-53 会先于目的地址绕过处理。
+为 `true`。设置为 `false` 不会关闭普通非 DNS 流量对未指定地址、回环、多播和
+本机真实地址精确匹配等安全绕过。如 `local.dns_mode` 所述，`hijack` 会在所有
+目的地址绕过之前处理 53 端口。
 
 #### local.include_uid
 
@@ -168,19 +194,44 @@ shared 数据路径的 IPv6；shared 使用独立的 `shared.ipv6_mode`。
 
 #### local.state_capacity
 
-本机重定向、UDP flow 和 socket-cookie 回退状态的容量。`0` 使用实现默认值
-（当前为 65536）；允许范围为 `0` 到 `1048576`。增大会占用更多锁定内核内存。
+本机重定向、UDP 缓存和 socket-cookie 回退状态的容量。`0` 使用实现默认值：
+重定向及 socket-cookie map 为 32768，connected UDP peer 与 UDP flow 缓存为
+16384，已关闭 socket 的 UDP 恢复 map 为 8192。支持 socket-release 清理的内核
+会启用独立 UDP flow 缓存；旧内核的 `lru_fallback` 路径只使用 peer 状态，未使用
+的 flow map 缩减为 1。显式配置的值会应用于重定向、peer、启用的 flow 缓存和
+socket-cookie map；恢复 map 取配置值与 8192 中的较小值。允许范围为 `0` 到
+`1048576`。
+增大会占用更多锁定内核内存。
 
 ### shared
 
 shared 模式不会创建热点、DHCP、NAT、IPv6 RA 或 IP 转发，这些仍由系统负责。
+
+#### shared.dns_mode
+
+控制 shared 数据路径对目标端口 53 的拦截顺序：
+
+| 值 | 行为 |
+|----|------|
+| `hijack` | 在 shared 客户端和目的地址绕过策略之前拦截。 |
+| `respect_policy` | 执行完整 shared 策略，仅拦截最终仍应进入代理路径的流量。 |
+| `off` | 在 shared 用户策略之前直接放行目标端口 53。 |
+
+默认值为 `hijack`。此时来源 CIDR/MAC 筛选、本机精确地址、私网绕过和
+`bypass_rule_set` 均不能绕过 53 端口；`respect_policy` 则正常遵守这些策略。
+协议选择、DHCP 安全放行、报文有效性以及 `shared.ipv6_mode: "off"` 在所有
+模式下仍是优先级更高的正确性门控。只处理 `network` 已启用协议的 TCP/UDP
+53；仅启用 TCP 时，shared DNS 拦截不再强制要求 UDP。该选项不能识别
+DoH/DoT，也不等同于路由规则中的 `hijack-dns` 动作。
 
 #### shared.interface
 
 ==shared 或 hybrid 模式必填==
 
 客户端报文进入 TC ingress 的下游接口。接口可在启动后出现或消失，sing-box
-会自动挂载和卸载。不要选择 `lo`、上游接口或仅支持三层报文的接口。热点与
+会自动挂载和卸载。shared eBPF 程序和 map 只在首个已配置接口出现时加载；
+接口暂时消失后仍保留 backend，避免重复执行 verifier 和 map 初始化。不要选择
+`lo`、上游接口或仅支持三层报文的接口。热点与
 Wi-Fi 上游共用接口名时，应使用源 CIDR 或 MAC 筛选客户端流量。
 
 #### shared.ipv6_mode
@@ -197,11 +248,11 @@ Wi-Fi 上游共用接口名时，应使用源 CIDR 或 MAC 筛选客户端流量
 #### shared.bypass_private_address
 
 是否在 shared 数据路径绕过内建私网、运营商级 NAT 和链路本地目的地址，默认值
-为 `true`，与 `local.bypass_private_address` 相互独立。设置为 `false` 后，仍会
-保留 IPv4 未指定地址范围（`0.0.0.0/8`）、完整 IPv4 回环范围
-（`127.0.0.0/8`）、IPv6 未指定地址和回环地址，以及 IPv4/IPv6 多播目的地址；
-分配给本机的精确地址也始终绕过。`dns_mode: "hijack"` 下，目标端口 53 继续保持
-文档所述的兼容优先级。
+为 `true`，与 `local.bypass_private_address` 相互独立。设置为 `false` 后，普通
+非 DNS 流量仍会绕过 IPv4 未指定地址范围（`0.0.0.0/8`）、完整 IPv4 回环范围
+（`127.0.0.0/8`）、IPv6 未指定地址和回环地址、IPv4/IPv6 多播目的地址以及本机
+精确地址。如 `shared.dns_mode` 所述，`hijack` 会在所有目的地址绕过之前处理
+53 端口。
 
 #### shared.include_source_cidr
 
@@ -221,8 +272,8 @@ Wi-Fi 上游共用接口名时，应使用源 CIDR 或 MAC 筛选客户端流量
 
 #### shared.state_capacity
 
-shared proxy、bypass 和分片状态容量。`0` 使用实现默认值：proxy 为 65536，
-分片为 8192；配置 bypass rule-set 或来源策略时 bypass 为 65536，否则未使用的
+shared proxy、bypass 和分片状态容量。`0` 使用实现默认值：proxy 为 32768，
+分片为 8192；配置 bypass rule-set 或来源策略时 bypass 为 16384，否则未使用的
 bypass 缓存缩减为 1（包括显式设置容量时）。显式设置的值会应用于实际启用的
 map。允许范围为 `0` 到 `1048576`。
 当代理状态持续承压或 token 预留开始失败时，sing-box 会暂时缩短孤立流清理
@@ -236,6 +287,31 @@ Android tethering 或其他 TC 程序协调时修改。无论优先级是否相�
 使用默认优先级时，sing-box 会在内核支持时采用 TCX，否则自动回退到 clsact。
 非默认优先级会固定使用 clsact，以确保配置的排序语义仍然有效。
 
+#### shared.advanced.data_plane
+
+shared TCP 和实验性 UDP 拦截数据面。默认值 `auto` 会优先尝试 TC socket assignment；如果
+内核拒绝所需的程序、map 或 helper，则自动回退到兼容的包改写路径。
+`socket_assign` 强制要求 TCP 使用现代路径，不允许整体回退；`rewrite` 始终使用
+目标 token 和 TC egress 源地址恢复。
+
+socket assignment 保留原始五元组，将 ingress 包直接分配给透明 listener，
+回包走正常内核协议栈。仅显式选择 `socket_assign` 时才尝试实验性的 UDP
+assignment，并会单独探测；若内核不提供
+`bpf_sk_lookup_udp` 或 verifier 拒绝 UDP classifier，TCP assignment 仍然保留，
+仅 UDP 回退 rewrite。默认 `auto` 模式下 UDP 仍使用 rewrite。Linux 4.19
+继续由 rewrite fallback 支持。
+
+#### shared.advanced.routing_mark
+
+socket assignment 使用的数据包 mark。`0` 使用进程专属默认值
+`0x53420001`；rewrite 数据面忽略此项。
+
+#### shared.advanced.routing_table
+
+将带 mark 的 assignment 数据包路由到 loopback 的策略路由表。`0` 使用表
+`2026`。sing-box 随 eBPF 入站安装并清理所需 rule 和 local route；如果专用
+优先级或路由表已存在不兼容状态，则拒绝覆盖。
+
 ### 内核兼容性
 
 shared 模式和仅启用 TCP 的 local 模式最低兼容目标为 Linux 4.19。local UDP
@@ -243,20 +319,19 @@ shared 模式和仅启用 TCP 的 local 模式最低兼容目标为 Linux 4.19�
 TCP/UDP 的 local 或 hybrid 配置需要 Linux 5.2，或包含相应回移的厂商内核。
 Android 的主要验证目标仍为 GKI 5.10 及以上。
 
-生成的程序只使用 BPF v1 指令集，不包含 verifier 可见的反向跳转，并且每个
-程序不超过 Linux 4.19 的 4096 条指令上限。实现不依赖内核 BTF、CO-RE、
-bounded-loop verifier、BPF timer、dynptr 或 kfunc。local 需要 cgroup v2 和所选
-协议对应的 socket-address hook；shared 需要 `sched_cls`、报文写入及校验和
-helper。TCX 作为新内核可选挂载路径使用，不可用时自动回退到 clsact。厂商内核
-可能单独回移、禁用或修改某项能力，因此实际能力探测
-比版本号更可靠。
-
-local UDP 启动时会先在目标 cgroup 上执行一次无副作用的真实挂载/卸载测试，再
-决定状态 map 的布局。`cgroup/sock_release` 测试成功时使用普通 Hash map，并在
-每个 UDP socket 关闭时精确清理；该 hook 不可用时则改用有界 LRU map，避免旧
-内核或厂商内核永久耗尽 UDP redirect 状态。启动日志会以
+生成的程序使用 BPF ISA v1，不要求 BTF 或 CO-RE。sing-box 会直接探测所需的
+map、program、helper 和挂载能力，而不是只根据内核版本选择路径；新内核挂载与
+batch 操作不可用时会自动回退。启动日志会以
 `udp_state_cleanup=socket_release` 或 `udp_state_cleanup=lru_fallback` 报告最终
-采用的路径。
+采用的 local UDP 清理路径，并以 `data_plane=socket_assign` 或
+`data_plane=rewrite` 报告 shared 数据面。显式启用实验性 UDP assignment 时，
+runtime status 还会输出是否启用、独立回退原因和成功/失败计数。`tcp_splice`
+状态会输出 attachment 模式、激活与回退、redirect/peer miss，以及已在连接关闭时
+结算的上传和下载字节。
+
+即使能力探测成功，本页开头的 Linux 6.6 LPM trie 警告仍然适用。
+
+### 诊断
 
 请以 root 使用与配置一致的模式和协议运行无侵入的纯 Go 探测器：
 
@@ -266,37 +341,11 @@ sing-box tools ebpf status --mode shared-network --interface br-lan
 sing-box tools ebpf status --mode all --interface br-lan --json
 ```
 
-该命令直接使用 `cilium/ebpf`，不依赖 shell、`bpftool` 或 `tc`。它只创建并立即
-关闭临时探测对象，不会挂载程序，也不会修改 cgroup、qdisc、路由、sysctl 或
-流量状态。
-使用 `--json` 可生成适合附加到问题报告的机器可读结果。
-流量路径警告会限频。如果运行期间出现本机或 shared 查询、packet-info、binding
-或清理错误，关闭日志会输出一条包含完整计数的汇总诊断。
+该命令只创建并立即关闭临时探测对象，不会挂载程序，也不会修改 cgroup、qdisc、
+路由、sysctl 或流量状态。使用 `--json` 可生成适合附加到问题报告的结果。
 
-启用 Debug 日志后，入站会在启动完成、每 10 分钟以及关闭前分别输出一条 JSON
-运行状态记录，其中包括：
-
-- map 名称、类型、ID、key/value 大小、内核 memlock、当前条目数和容量；
-- 已加载程序的名称、section、ID 和实际挂载查询结果；
-- local UDP 清理模式，以及 TCP、UDP redirect token 预留失败计数；
-- 每个 shared 接口的 ifindex，以及当前使用的 `tcx` 或 `clsact` 挂载方式；
-- TCX link ID、挂载健康状态、生命周期修复计数和流量诊断计数。
-
-`entries_known: false` 或单项中的 `error` 表示内核拒绝了该项查询，不会因此改变
-拦截状态。Array map 显示固定槽位数；LRU map 只遍历 key，避免状态采集刷新其
-淘汰顺序；HASH 和 LPM map 在内核支持时使用 batch lookup，旧内核会自动回退。
-非 Debug 日志级别不会启动周期 reporter，也不会执行 map 扫描和挂载查询，因此
-默认 Info 级别没有这部分 timer 和采集开销。
-
-`udp_redirect_reservation_failures` 非零表示内核无法预留 redirect token；采用
-Hash 的 UDP redirect/token map 达到 90% 容量后也会输出限频警告。任一信号都
-是 UDP 状态承压的直接证据，反馈时应提供重启 sing-box 之前的完整 runtime-status
-记录。
-
-`sing-box tools ebpf status` 是不执行挂载的启动前能力估计；对于
-`cgroup/sock_release`，应以入站启动时的真实挂载/卸载测试为准。该命令也无法
-查看另一个运行中
-sing-box 所持有的实时 map 和挂载状态，因为入站不会把这些对象 pin 到 bpffs。
-排查运行中的拦截故障时，请提供 Debug 运行状态记录。
-需要采集 Go CPU、heap、RSS、GC 和维护任务耗时时，请使用临时的
-[`ebpf_debug` 排障流程](/zh/manual/misc/ebpf-troubleshooting/)。
+启用 Debug 日志后，sing-box 会记录 map/program ID、挂载健康状态、UDP 清理模式
+和汇总失败计数。临时使用 `ebpf_debug` tag 构建时，还会在内核支持的情况下记录
+map 占用、维护任务耗时、Go runtime 和内核 BPF 运行统计。采集材料时请参阅
+[eBPF 排障指南](/zh/manual/misc/ebpf-troubleshooting/)；`ebpf_debug` 不适合日常
+release 构建。

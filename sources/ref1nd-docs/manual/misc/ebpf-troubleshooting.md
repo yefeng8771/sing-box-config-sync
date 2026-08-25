@@ -91,8 +91,10 @@ CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-an
 GOARCH=arm64 GOOS=android make build
 ```
 
-Set the sing-box log level to `debug`. The diagnostic build adds a `debug`
-object to the eBPF runtime-status JSON every minute. It contains:
+Set the sing-box log level to `debug`. The diagnostic build emits eBPF
+runtime-status JSON at startup and shutdown, and after redirect or map-pressure
+events. Events within 30 seconds are coalesced into one collection. The JSON
+adds a `debug` object containing:
 
 - Go heap, stack, total runtime allocation, RSS, goroutine, GC, and GC pause
   counters;
@@ -100,12 +102,22 @@ object to the eBPF runtime-status JSON every minute. It contains:
   cleanup, shared pressure polling, shared flow cleanup, attachment
   reconciliation, IPv6 route probes, and status collection;
 - normal map entries, capacity, key/value sizes, kernel memlock, program IDs,
-  link IDs, and queried attachment health.
+  link IDs, queried attachment health, and per-program run count, cumulative
+  kernel runtime, average nanoseconds per run, and recursion misses.
 
-The normal `with_ebpf` build keeps the correctness counters and ten-minute
-runtime status when Debug logging is active. At Info level it does not start
-the periodic status reporter. The extra Go runtime and task-duration sampling
-exists only in an `ebpf_debug` build.
+The normal `with_ebpf` build keeps the correctness counters and lightweight
+ten-minute runtime status when Debug logging is active, but does not traverse
+Hash, LPM, or LRU maps for occupancy. At Info level it does not start the
+periodic status reporter. Full map occupancy, Go runtime, and task-duration
+sampling exist only in an `ebpf_debug` build.
+
+An `ebpf_debug` build temporarily enables the kernel's
+`BPF_STATS_RUN_TIME` facility while at least one eBPF inbound is active. This
+is the most direct measurement of BPF data-plane cost, but it is a system-wide
+kernel statistic with measurable overhead. Use it for diagnosis rather than a
+normal release build. Kernels older than 5.8 and vendor kernels that reject the
+facility continue without program runtime statistics; `stats_error` records a
+per-program read failure when available.
 
 For local UDP, inspect `local.backend.udp_cleanup_mode`,
 `udp_redirect_reservation_failures`, and the `cgroup_udp_redirect` and
@@ -122,14 +134,20 @@ scan.
 
 ## CPU and memory profiles
 
-Go pprof is opt-in in an `ebpf_debug` build. Select a free port when starting
-sing-box:
+Go pprof is provided by sing-box itself and does not require `ebpf_debug`.
+Enable the shared debug HTTP endpoint in the configuration:
 
-```sh
-SING_BOX_EBPF_PPROF_PORT=6060 sing-box run -c config.json
+```json
+{
+  "experimental": {
+    "debug": {
+      "listen": "127.0.0.1:6060"
+    }
+  }
+}
 ```
 
-The server listens only on `127.0.0.1`. On Android, forward it to the host:
+Keep this listener on loopback. On Android, forward it to the host:
 
 ```sh
 adb forward tcp:6060 tcp:6060
@@ -157,24 +175,15 @@ separate `bpftool prog profile id <id>` capture; do not enable global kernel
 BPF statistics unless specifically requested because they affect the whole
 system.
 
-## Periodic maintenance is not debug code
+## Runtime maintenance
 
-The following work keeps interception correct over time and remains enabled in
-normal builds:
-
-| Task | Trigger | Purpose |
-|------|---------|---------|
-| Shared pressure poll | Every 5 seconds | Detect token allocation failures and map pressure early. |
-| Shared flow sweep | Normally every 30 seconds, faster under pressure | Release orphaned token, reply, and listener state without removing active flows. |
-| Shared attachment reconciliation | Network change or every 30 seconds | Attach new interfaces and repair removed TCX/clsact state and `route_localnet`. |
-| Local TCP redirect sweep | Every minute | Remove stale connect state left by failed or abandoned accepts. |
-| Local IPv6 route probe | Debounced network-change event | Keep `local.ipv6_mode: auto` synchronized with usable native IPv6. |
-
-Disabling these tasks can cause the exact long-running failures they diagnose:
-full maps, stale redirects, or silently detached interfaces. The
-`ebpf_debug` timing counters and pprof should first establish which task is
-expensive. Change an interval only after a profile and runtime-status sample
-show a measurable problem on the affected kernel.
+Shared flow cleanup, attachment reconciliation, local TCP cleanup, and IPv6
+route probing are correctness work and remain enabled in normal builds. Most
+work is event or deadline driven, with low-frequency watchdogs for kernel state
+that has no reliable userspace event. If CPU usage appears periodic, include an
+`ebpf_debug` runtime-status sample and a CPU profile instead of disabling these
+tasks; doing so can cause map exhaustion, stale redirects, or detached
+interfaces.
 
 ## Privacy and packaging
 

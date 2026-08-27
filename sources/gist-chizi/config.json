@@ -1,22 +1,22 @@
 {
+  "$schema": "https://raw.githubusercontent.com/reF1nd/sing-box/reF1nd-testing-next/docs/schema.json",
   "log": {
     "disabled": false,
-    "level": "debug",
+    "level": "info",
     "output": "sing-box.log",
     "timestamp": true
   },
   "experimental": {
     "cache_file": {
       "enabled": true,
-      "path": "cache.db",
-      "store_fakeip": true
+      "path": "cache.db"
     },
     "clash_api": {
       "default_mode": "Rule",
       "external_controller": "0.0.0.0:9090",
       "secret": "singbox",
       "external_ui": "zashboard",
-      "external_ui_download_url": "https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip"
+      "external_ui_download_url": "https://github.com/Zephyruso/zashboard/releases/download/v3.22.0/dist-cdn-fonts.zip"
     }
   },
   "services": [
@@ -28,9 +28,7 @@
       "dashboard": {
         "enabled": true,
         "path": "dashboard",
-        "download_url": "https://github.com/SagerNet/sing-box-dashboard/archive/refs/heads/gh-pages.zip",
-        "http_client": "s-download",
-        "update_interval": "1d"
+        "http_client": "s-download"
       }
     }
   ],
@@ -108,15 +106,12 @@
       }
     ],
     "rules": [
-      {
-        "clash_mode": "Direct",
-        "action": "route",
-        "server": "dns-direct"
-      },
+      { "clash_mode": "Global", "action": "route", "server": "dns-proxy" },
+      { "clash_mode": "Direct", "action": "route", "server": "dns-direct" },
       {
         "rule_set": [
           "direct",
-          "AppleCN"
+          "geosite/apple-cn"
         ],
         "action": "route",
         "server": "dns-direct"
@@ -132,25 +127,32 @@
         "type": "logical",
         "mode": "and",
         "rules": [
-          {
-            "clash_mode": "AllowAds",
-            "invert": true
-          },
-          {
-            "rule_set": [
-              "block",
-              "Ads_AWAvenue"
-            ]
-          }
+          { "clash_mode": "AllowAds", "invert": true },
+          { "rule_set": ["block", "Ads_AWAvenue", "geosite/category-ads-all"] }
         ],
         "action": "reject"
       },
       {
         "rule_set": [
-          "ChinaDomain"
+          "geosite/category-ai-!cn",
+          "geosite/google"
+        ],
+        "action": "route",
+        "server": "dns-proxy"
+      },
+      {
+        "rule_set": [
+          "geosite/cn"
         ],
         "action": "route",
         "server": "dns-direct"
+      },
+      {
+        "rule_set": [
+          "geosite/geolocation-!cn"
+        ],
+        "action": "route",
+        "server": "dns-proxy"
       }
     ],
     "final": "dns-proxy",
@@ -169,20 +171,20 @@
       "tag": "ebpf-in",
       "mode": "hybrid",
       "bypass_rule_set": [
-        "ChinaIP"
+        "geoip/cn"
       ],
       "local": {
-        "dns_mode": "hijack",
+        "dns_mode": "respect_policy",
         "ipv6_mode": "auto",
         "include_package": [],
         "exclude_package": []
       },
       "shared": {
-        "dns_mode": "hijack",
+        "dns_mode": "respect_policy",
         "interface": [
           "wlan2"
         ],
-        "ipv6_mode": "always",
+        "ipv6_mode": "always"
       }
     }
   ],
@@ -217,97 +219,86 @@
   "route": {
     "default_domain_resolver": "dns-direct",
     "rule_set": [
+      { "type": "local", "tag": ["block", "direct", "proxy"], "format": "source", "path": "./source/{tag}.json" },
       {
-        "type": "local",
-        "tag": ["block", "direct", "proxy"],
+        "type": "remote",
+        "tag": "Ads_AWAvenue",
         "format": "source",
-        "path": "./source/{tag}.json"
+        "url": "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json",
+        "update_interval": "24h",
+        "path": "./source/rule_set/Ads_AWAvenue.json"
       },
       {
         "type": "remote",
-        "tag": ["Ads_AWAvenue", "AppleCN", "ChinaDomain", "ChinaIP", "Proxy"],
+        "tag": ["geosite/category-ads-all", "geosite/apple-cn", "geosite/category-ai-!cn", "geosite/google", "geosite/geolocation-!cn", "geosite/cn", "geoip/cn", "geoip/telegram"],
         "format": "binary",
-        "url": "https://raw.githubusercontent.com/Repcz/Tool/X/sing-box/Rules/{tag}.srs",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/{tag}.srs",
         "update_interval": "24h",
-        "path": "./source/{tag}.srs"
+        "path": "./source/rule_set/{tag}.srs"
       }
     ],
     "rules": [
-      {
-        "action": "sniff"
-      },
+      { "action": "sniff" },
       {
         "type": "logical",
         "mode": "or",
         "rules": [
-          {
-            "port": 53
-          },
-          {
-            "protocol": "dns"
-          }
+          { "port": 53 },
+          { "protocol": "dns" }
         ],
         "action": "hijack-dns"
       },
-      {
-        "clash_mode": "Direct",
-        "action": "route",
-        "outbound": "direct"
-      },
-      {
-        "rule_set": [
-          "direct",
-          "AppleCN"
-        ],
-        "action": "route",
-        "outbound": "direct"
-      },
-      {
-        "rule_set": [
-          "proxy"
-        ],
-        "action": "route",
-        "outbound": "Proxy"
-      },
+      { "clash_mode": "Global", "action": "route", "outbound": "Proxy" },
+      { "clash_mode": "Direct", "action": "route", "outbound": "direct" },
+      { "rule_set": "proxy", "action": "route", "outbound": "Proxy" },
+      { "rule_set": "direct", "action": "route", "outbound": "direct" },
       {
         "type": "logical",
         "mode": "and",
         "rules": [
-          {
-            "clash_mode": "AllowAds",
-            "invert": true
-          },
-          {
-            "rule_set": [
-              "block",
-              "Ads_AWAvenue"
-            ]
-          }
+          { "clash_mode": "AllowAds", "invert": true },
+          { "rule_set": ["block", "Ads_AWAvenue", "geosite/category-ads-all"] }
         ],
         "action": "reject"
       },
       {
         "rule_set": [
-          "ChinaDomain"
+          "geosite/category-ai-!cn",
+          "geosite/google"
+        ],
+        "action": "route",
+        "outbound": "Proxy"
+      },
+      {
+        "rule_set": [
+          "geosite/apple-cn",
+          "geosite/cn"
         ],
         "action": "route",
         "outbound": "direct"
       },
       {
         "rule_set": [
-          "Proxy"
+          "geosite/geolocation-!cn"
         ],
         "action": "route",
         "outbound": "Proxy"
-      },      
+      },
       {
         "action": "resolve",
         "match_only": true
       },
       {
-        "rule_set": "ChinaIP",
+        "rule_set": "geoip/cn",
         "action": "route",
         "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geoip/telegram"
+        ],
+        "action": "route",
+        "outbound": "Proxy"
       },
       {
         "ip_is_private": true,

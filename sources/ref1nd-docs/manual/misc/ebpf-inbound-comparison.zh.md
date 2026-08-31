@@ -1,7 +1,8 @@
 # sing-box eBPF 入站对比
 
-本文是选型指南。完整的 eBPF 配置字段和内核能力要求请参阅 [eBPF 入站配置
-参考](/zh/configuration/inbound/ebpf/)。
+本文是选型指南。完整的 eBPF 配置字段请参阅 [eBPF 入站配置参考]
+(/zh/configuration/inbound/ebpf/)；内核配置项、运行时前提和 Linux/OpenWrt
+软件包请参阅 [eBPF 入站内核要求](/zh/manual/misc/ebpf-kernel-requirements/)。
 
 ## 选择拦截路径
 

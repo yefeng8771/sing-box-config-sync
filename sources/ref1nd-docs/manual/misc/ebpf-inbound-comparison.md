@@ -1,8 +1,9 @@
 # sing-box eBPF inbound comparison
 
-This page is a selection guide. The complete eBPF configuration reference and
-kernel capability requirements are in the [eBPF inbound
-reference](/configuration/inbound/ebpf/).
+This page is a selection guide. The complete eBPF configuration reference is
+in the [eBPF inbound reference](/configuration/inbound/ebpf/); kernel symbols,
+runtime prerequisites, and Linux/OpenWrt packages are listed in the [eBPF
+kernel requirements](/manual/misc/ebpf-kernel-requirements/).
 
 ## Choose a capture path
 

@@ -32,12 +32,11 @@ network administration privileges.
   "mode": "local",
   "network": ["tcp", "udp"],
   "udp_timeout": "5m",
-  "tcp_splice": false,
   "bypass_rule_set": ["geoip-cn"],
   "local": {
-    "dns_mode": "hijack",
+    "dns_mode": "respect_policy",
     "cgroup_path": "",
-    "ipv6_mode": "auto",
+    "ipv6": true,
     "bypass_private_address": true,
     "include_uid": [],
     "include_uid_range": [],
@@ -45,24 +44,19 @@ network administration privileges.
     "exclude_uid_range": [],
     "include_android_user": [],
     "include_package": [],
-    "exclude_package": [],
-    "state_capacity": 0
+    "exclude_package": []
   },
   "shared": {
-    "dns_mode": "hijack",
+    "dns_mode": "respect_policy",
     "interface": [],
-    "ipv6_mode": "always",
+    "ipv6": true,
     "bypass_private_address": true,
     "include_source_cidr": [],
     "exclude_source_cidr": [],
     "include_mac_address": [],
     "exclude_mac_address": [],
-    "state_capacity": 0,
     "advanced": {
-      "tc_priority": 1,
-      "data_plane": "auto",
-      "routing_mark": 0,
-      "routing_table": 0
+      "tc_priority": 1
     }
   }
 }
@@ -99,33 +93,11 @@ the kernel. Map contents are refreshed after rule-set updates. Existing flows
 keep their decision until they expire.
 
 When a FakeIP DNS server is configured, its IPv4 and IPv6 allocation ranges
-are force-intercepted before private-address and rule-set bypass checks. This
-also lets FakeIP IPv6 work while `local.ipv6_mode` is `auto` and no usable
-native IPv6 route is present. UID, package, shared source, protocol, self-loop,
-and exact local-host address filters still take precedence. A rule-set overlap
+are force-intercepted before private-address and rule-set bypass checks. UID,
+package, shared source, protocol, self-loop, and exact local-host address
+filters still take precedence. A rule-set overlap
 is reported at startup; an unsafe FakeIP range overlapping unspecified,
 loopback, multicast, or an internal redirect range is rejected.
-
-### tcp_splice
-
-Enables experimental in-kernel stream relay for eligible TCP connections.
-Default is `false`.
-
-Only connections entering this eBPF inbound and routed through the built-in
-`direct` outbound are eligible. Both sides must be plain TCP sockets; UDP,
-proxy outbounds, multiplexed or encrypted transports, TLS fragmentation, TLS
-spoofing, and connections with unsafe buffered state continue to use the
-normal Go copy path. Unsupported SOCKHASH or `SK_SKB` kernel capabilities also
-fall back without preventing the inbound from starting. When an upstream power
-report recorder is active, splice is disabled for that connection so its
-userspace attribution and byte accounting remain complete.
-
-The feature may reduce userspace CPU and copies for long-lived DIRECT TCP
-traffic. It is experimental because socket activation and half-close behavior
-vary across vendor kernels. Bytes moved entirely in the kernel do not update
-userspace counters in real time. sing-box reconciles accumulated upload and
-download bytes with per-connection and global traffic statistics when the
-splice connection closes, so an active connection can temporarily appear low.
 
 ### local
 
@@ -136,14 +108,15 @@ Controls interception of destination port 53 on the local data path:
 | Value | Behavior |
 |-------|----------|
 | `hijack` | Intercept before local UID/package and destination bypass policy. |
-| `respect_policy` | Run the complete local policy, then intercept only traffic that remains on the proxy path. |
+| `respect_policy` | Honor local UID/package selection, then intercept selected DNS without destination bypass. |
 | `off` | Bypass destination port 53 before local user policy. |
 
-Default is `hijack`. In this mode, UID/package filters, exact host addresses,
-private-address bypass, and `bypass_rule_set` cannot bypass port 53.
-`respect_policy` applies all of those checks normally. Self-loop protection,
+Default is `respect_policy`. It honors UID/package selection, but host, private-address, and
+`bypass_rule_set` destination bypass do not apply to selected DNS.
+Explicit `hijack` additionally ignores UID/package selection, exact host addresses,
+private-address bypass, and `bypass_rule_set` for port 53. Self-loop protection,
 internal redirect protection, protocol selection, DHCP safety, packet validity,
-and `local.ipv6_mode: "off"` remain higher-priority correctness gates in every
+and `local.ipv6: false` remain higher-priority correctness gates in every
 mode. Only TCP and/or UDP enabled by `network` are considered, so TCP-only and
 UDP-only configurations are valid. This setting does not identify DoH or DoT
 and is not the same as the `hijack-dns` routing action.
@@ -152,22 +125,18 @@ and is not the same as the `hijack-dns` routing action.
 
 Absolute cgroup v2 path to intercept. Empty uses the detected cgroup v2 root.
 Only one `local` or `hybrid` eBPF inbound is supported in one sing-box process.
-The owner installs process-wide socket protection for sing-box-created sockets,
-so using a different cgroup path does not allow another local backend.
+The owning Box registers the socket cookies of sing-box-created sockets in the
+local bypass map. Protection is scoped to that Box rather than a process-global
+callback, but a second local backend in the same Box is still rejected.
 
-#### local.ipv6_mode
+#### local.ipv6
 
-| Value | Behavior |
-|-------|----------|
-| `auto` | Intercept new native IPv6 flows only while a usable IPv6 route exists. |
-| `always` | Always enable native IPv6 interception. |
-| `off` | Do not intercept native IPv6. |
-
-Default is `auto`. IPv4-mapped IPv6 sockets are still handled as IPv4. This
-field does not control shared-path IPv6; use `shared.ipv6_mode` separately.
-Ordinary native IPv6 follows the route-availability probe; configured FakeIP
-IPv6 ranges are intercepted without that route gate so DNS synthesis cannot
-produce an unreachable bypass path.
+Enable native IPv6 interception on the local cgroup path. Default is `true`.
+Set it to `false` when the host must leave native IPv6 outside this inbound.
+The value is static for the lifetime of the inbound; sing-box does not infer it
+from the current default route. IPv4-mapped IPv6 sockets are still handled as
+IPv4. This field does not control shared-path IPv6; use `shared.ipv6`
+separately.
 
 #### local.bypass_private_address
 
@@ -211,18 +180,6 @@ System DNS, `DownloadManager`, isolated processes, SDK sandboxes, and similar
 delegated traffic may use another UID. Startup logs show the final include and
 exclude UID ranges written to the kernel.
 
-#### local.state_capacity
-
-Capacity for local redirect, UDP cache, and socket-cookie fallback state. `0`
-uses the implementation defaults: 32768 redirect and socket-cookie entries,
-16384 connected-UDP peer and UDP flow-cache entries, and 8192 closed-socket
-UDP recovery entries. Kernels with socket-release cleanup use the separate UDP
-flow cache; the legacy `lru_fallback` path needs only peer state and reduces the
-unused flow map to one entry. An explicit value applies to redirect, peer,
-enabled flow-cache, and socket-cookie maps. The recovery map uses the smaller
-of that value and 8192. Valid range is 0 through 1048576. Larger values consume
-more locked kernel memory.
-
 ### shared
 
 Shared mode does not create a hotspot, DHCP, NAT, IPv6 RA, or IP forwarding.
@@ -235,13 +192,14 @@ Controls interception of destination port 53 on the shared data path:
 | Value | Behavior |
 |-------|----------|
 | `hijack` | Intercept before shared client and destination bypass policy. |
-| `respect_policy` | Run the complete shared policy, then intercept only traffic that remains on the proxy path. |
+| `respect_policy` | Honor shared source CIDR/MAC selection, then intercept selected DNS without destination bypass. |
 | `off` | Bypass destination port 53 before shared user policy. |
 
-Default is `hijack`. In this mode, source CIDR/MAC filters, exact host
-addresses, private-address bypass, and `bypass_rule_set` cannot bypass port 53.
-`respect_policy` applies all of those checks normally. Protocol selection,
-DHCP safety, packet validity, and `shared.ipv6_mode: "off"` remain
+Default is `respect_policy`. It honors source CIDR/MAC selection, but host, private-address,
+and `bypass_rule_set` destination bypass do not apply to selected DNS.
+Explicit `hijack` additionally ignores source CIDR/MAC selection, exact host addresses,
+private-address bypass, and `bypass_rule_set` for port 53. Protocol selection,
+DHCP safety, packet validity, and `shared.ipv6: false` remain
 higher-priority correctness gates in every mode. Only TCP and/or UDP enabled by
 `network` are considered; shared DNS interception no longer requires UDP when
 only TCP is enabled. This setting does not identify DoH or DoT and is not the
@@ -260,18 +218,21 @@ Do not select `lo`, an upstream interface, or a layer-3-only interface. When a
 hotspot and Wi-Fi upstream share an interface name, restrict clients with
 source CIDR or MAC policy.
 
-#### shared.ipv6_mode
+#### shared.ipv6
 
-| Value | Behavior |
-|-------|----------|
-| `always` | Always intercept IPv6 traffic on selected downstream interfaces. |
-| `off` | Do not intercept shared-path IPv6 traffic. |
+Enable IPv6 interception on selected downstream interfaces. Default is `true`.
+`false` does not block IPv6: when the system can forward IPv6, that traffic
+bypasses sing-box. The value is static for the lifetime of the inbound. Shared
+mode does not infer downstream IPv6 availability or proxy reachability from the
+host's default IPv6 route.
 
-Default is `always`, which preserves the behavior of earlier versions. `off`
-does not block IPv6: when the system can forward IPv6, that traffic bypasses
-sing-box. Shared mode does not use local native-route probing because downstream
-IPv6 availability and proxy reachability cannot be inferred from the host's
-default IPv6 route.
+Shared interception is best effort for fragmented traffic. On ingress, every
+real IPv4 fragment, including a first fragment with the More Fragments bit, and
+every non-atomic IPv6 fragment bypasses unchanged so one datagram cannot be
+split between proxy and direct paths. On egress, a real fragment whose source
+is in sing-box's internal token prefix is dropped instead of leaking that token
+address onto the downstream network. An IPv6 atomic fragment is not a
+fragmented datagram and is parsed normally.
 
 #### shared.bypass_private_address
 
@@ -301,18 +262,6 @@ Client source CIDRs to bypass. Exclude takes precedence over include.
 
 Client source MAC addresses to bypass. Exclude takes precedence over include.
 
-#### shared.state_capacity
-
-Capacity for shared proxy, bypass, and fragment state. `0` uses the
-implementation defaults: 32768 proxy entries, 8192 fragment entries, and
-16384 bypass entries when bypass rule-set or source policies are configured.
-The unused bypass cache is reduced to one entry otherwise, including when an
-explicit capacity is set. An explicit value applies to the active maps. Valid
-range is 0 through 1048576.
-When proxy state reaches sustained pressure or token reservation starts to
-fail, sing-box temporarily shortens orphan cleanup to recover capacity while
-retaining flows referenced by active TCP or UDP sessions.
-
 #### shared.advanced.tc_priority
 
 TC filter priority in the range 1 through 65535. Default is `1`. Change it only
@@ -322,36 +271,10 @@ With the default priority, sing-box uses TCX when the kernel supports it and
 falls back to clsact automatically. A non-default priority selects clsact so
 that the requested ordering remains meaningful.
 
-#### shared.advanced.data_plane
-
-Shared TCP and experimental UDP interception data plane. `auto` is the default: sing-box first tries
-TC socket assignment and falls back to the compatible packet-rewrite path when
-the kernel rejects its program, map, or helper requirements. `socket_assign`
-requires the modern TCP path and fails startup instead of falling back as a
-whole. `rewrite` always uses destination tokens and TC egress source
-restoration.
-
-Socket assignment preserves the original tuple, assigns ingress packets to the
-transparent listener, and lets replies use the normal kernel stack. UDP
-assignment is attempted only when `socket_assign` is selected explicitly and
-is probed separately: if `bpf_sk_lookup_udp` is unavailable or the
-UDP classifier is rejected, TCP assignment remains enabled and UDP alone uses
-rewrite. The default `auto` mode keeps UDP on rewrite. Linux 4.19 remains
-supported through the rewrite fallback.
-
-#### shared.advanced.routing_mark
-
-Packet mark used by socket assignment. `0` selects the process-owned default
-`0x53420001`. It is ignored by the rewrite data plane.
-
-#### shared.advanced.routing_table
-
-Policy-routing table used to route marked assignment packets to loopback. `0`
-selects table `2026`. sing-box installs and removes the required rule and local
-routes with the eBPF inbound. It refuses incompatible state at the owned rule
-priority or table instead of replacing it.
-
 ### Kernel compatibility
+
+See the [eBPF inbound kernel requirements](/manual/misc/ebpf-kernel-requirements/)
+for the complete Kconfig, runtime, and Linux/OpenWrt package checklist.
 
 Linux 4.19 is the minimum compatibility target for shared mode and TCP-only
 local mode. Local UDP also requires the cgroup UDP4/UDP6 recvmsg hooks added by
@@ -364,12 +287,8 @@ the required map, program, helper, and attachment capabilities instead of
 selecting paths only by kernel version. Newer attachment and batch-operation
 paths fall back automatically when unavailable. The startup log reports the
 selected local UDP cleanup path as `udp_state_cleanup=socket_release` or
-`udp_state_cleanup=lru_fallback`, and reports the shared path as
-`data_plane=socket_assign` or `data_plane=rewrite`. With explicit experimental
-UDP assignment, runtime status also reports enablement, its independent
-fallback reason, and success/failure counters. `tcp_splice` status reports the
-attachment mode, activation and fallback, redirect/peer misses, and upload and
-download bytes reconciled when connections close.
+`udp_state_cleanup=lru_fallback`. Shared mode always uses TC destination-token
+rewrite on ingress and source restoration on egress.
 
 The Linux 6.6 LPM-trie warning at the top of this page still applies even when
 the capability probe succeeds.
@@ -388,9 +307,10 @@ The command creates and closes transient probe objects. It does not attach
 programs or change cgroups, qdiscs, routes, sysctls, or traffic. `--json`
 produces a report suitable for an issue attachment.
 
-With Debug logging, sing-box records map and program IDs, attachment health,
-the UDP cleanup mode, and aggregate failure counters. Temporary builds with
-the `ebpf_debug` tag also report map occupancy, maintenance timings, Go runtime
-statistics, and kernel BPF runtime statistics when supported. Use the
+Normal builds report the selected cleanup and attachment modes in startup
+logs, without walking maps or enabling global kernel statistics. Temporary
+builds with the `ebpf_debug` tag emit detailed startup, policy, and cleanup
+logs, plus event-driven snapshots containing map occupancy and per-program
+kernel runtime statistics when supported. Use the
 [eBPF troubleshooting guide](/manual/misc/ebpf-troubleshooting/) when collecting
 a report; `ebpf_debug` is not intended for normal release builds.

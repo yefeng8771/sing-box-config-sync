@@ -4,7 +4,7 @@
     "repo": "Repcz/Tool",
     "branch": "X",
     "path": "sing-box",
-    "commit": "814116de822767c1eca7c762a2c2a9d40bb7d25b",
+    "commit": "6e6fc290994afd871d4c116c0c70a38e53a44710",
     "files": 150,
     "url": "https://github.com/Repcz/Tool/tree/X/sing-box"
   },
@@ -29,8 +29,8 @@
     "repo": "reF1nd/sing-box",
     "branch": "reF1nd-testing",
     "path": "docs",
-    "commit": "2e3862485f099523c0c2bb3f5b7a48325f8a7ce4",
-    "files": 307,
+    "commit": "49228ae9c1959b6f2b6d2d618414c79952b52a9e",
+    "files": 305,
     "url": "https://github.com/reF1nd/sing-box/tree/reF1nd-testing/docs"
   },
   "boxproxy-box": {

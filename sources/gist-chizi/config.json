@@ -169,22 +169,22 @@
     {
       "type": "ebpf",
       "tag": "ebpf-in",
-      "mode": "hybrid",
       "bypass_rule_set": [
-        "geoip/cn"
       ],
       "local": {
+        "enabled": true,
+        "data_plane": "tc",
         "dns_mode": "respect_policy",
-        "ipv6_mode": "auto",
         "include_package": [],
         "exclude_package": []
       },
       "shared": {
+        "enabled": true,
+        "data_plane": "socket_assign",
         "dns_mode": "respect_policy",
         "interface": [
           "wlan2"
-        ],
-        "ipv6_mode": "always"
+        ]
       }
     }
   ],

@@ -7,7 +7,7 @@
 | 文件 | 用途 | 引用方向 |
 |---|---|---|
 | `direct-domains` | 自定义直连域名（VPS/订阅/CDN + 内网检测） | 直连 |
-| `proxy-domains` | 自定义代理域名（按需添加，当前为空占位） | 代理 |
+| `proxy-domains` | 自定义代理域名（当前：`githubusercontent.com`） | 代理 |
 
 每个规则集提供两种格式（与上游 Repcz 规则集一致）：
 - `.json` — HeadlessRuleSet v4 源文件，可读、易编辑
@@ -16,7 +16,7 @@
 ## direct-domains 内容
 
 **VPS/订阅/CDN**（走直连）：
-`hybgzs.com` `198707.xyz` `yi.uy`(覆盖 `bitder.yi.uy`) `proxyscrape.com` `jsdelivr.net` `githubusercontent.com`
+`hybgzs.com` `198707.xyz` `yi.uy`(覆盖 `bitder.yi.uy`) `proxyscrape.com` `jsdelivr.net`
 
 **内网/网络连通性检测**（走内网/直连，避免被代理误拦）：
 `lancache.steamcontent.com` `10099.com.cn` `msftconnecttest.com` `msftncsi.com` `local` `lan` `home` `internal` `corp`
@@ -68,3 +68,14 @@
 - `custom/direct-domains` — 自有服务/CDN/内网检测 → 直连
 - `custom/proxy-domains` — 需强制走代理的域名 → 代理
 - 如需更细分类（如 `ai-domains`/`streaming-domains`），可新增独立规则集，上游 Repcz 已有的同类集合（AI/Google/Telegram 等）则继续引用上游，避免重复维护。
+
+## 变更记录
+
+- **2026-09-22**：`githubusercontent.com` 从 `direct-domains` 移到 `proxy-domains`。
+  理由：GitHub Release 的资产域名 `release-assets.githubusercontent.com` 命中该后缀后被判**直连**，实测同一签名 URL
+  从家宽直连只有 **4.5–6.7 KB/s**（207 MB 的 zip 下了 303–418 KB 就卡死 → 下载器报 `Download aborted`），
+  而同一 URL 在美国 VPS 上 **83 MB/s**、经节点 **7.2 MB/s**（三个数量级之差）。
+  改后 `*.githubusercontent.com`（`release-assets` / `objects` / `raw` / `avatars`）统一走代理；
+  `github.com` / `codeload.github.com` 本来就不在任何名单里、落 `final` 走代理，行为不变。
+  注意规则顺序：`🛰️自定义直连` 在 `🛰️自定义代理` **之前**，所以"从 direct 删掉"才是生效动作，
+  只往 proxy 加是无效的。详见 QWRT 仓库 `.agents/notes/implemented/bug-fix/2026-09-22-githubusercontent-direct-stall.md`。

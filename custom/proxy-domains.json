@@ -1,4 +1,8 @@
 {
   "version": 4,
-  "rules": []
+  "rules": [
+    {
+      "domain_suffix": ["githubusercontent.com"]
+    }
+  ]
 }

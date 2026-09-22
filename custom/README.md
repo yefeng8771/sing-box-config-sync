@@ -16,7 +16,7 @@
 ## direct-domains 内容
 
 **VPS/订阅/CDN**（走直连）：
-`hybgzs.com` `198707.xyz` `yi.uy`(覆盖 `bitder.yi.uy`) `proxyscrape.com` `jsdelivr.net`
+`hybgzs.com` `198707.xyz` `yi.uy`(覆盖 `bitder.yi.uy`) `proxyscrape.com` `jsdelivr.net` `987891.xyz`(DE 节点/DERP：覆盖 `h2de.987891.xyz` `derp.987891.xyz`)
 
 **内网/网络连通性检测**（走内网/直连，避免被代理误拦）：
 `lancache.steamcontent.com` `10099.com.cn` `msftconnecttest.com` `msftncsi.com` `local` `lan` `home` `internal` `corp`
@@ -79,3 +79,14 @@
   `github.com` / `codeload.github.com` 本来就不在任何名单里、落 `final` 走代理，行为不变。
   注意规则顺序：`🛰️自定义直连` 在 `🛰️自定义代理` **之前**，所以"从 direct 删掉"才是生效动作，
   只往 proxy 加是无效的。详见 QWRT 仓库 `.agents/notes/implemented/bug-fix/2026-09-22-githubusercontent-direct-stall.md`。
+
+### 反复踩坑警告（同一个 bug 修过两次）
+
+| 日期 | commit | 动作 |
+| --- | --- | --- |
+| 2026-09-01 | `6707f54` | **移除** `githubusercontent.com`（理由：release assets 走直连被限速 + TLS RST） |
+| 2026-09-21 | `db0cc30` | **又加了回来**（理由：「与 jsdelivr 同属境外但必须直连的下载源」）→ 同日一并补入 `987891.xyz` |
+| 2026-09-22 | `3c24c48` + 本提交 | 再次移除；`987891.xyz` **保留**（节点域名走代理会自己连自己） |
+
+结论：**不要把 `githubusercontent.com` 放回 `direct-domains`**。两次实测（2026-09-01 ≈31 KB/s + TLS RST；2026-09-22 4.5–6.7 KB/s、207 MB 只下 300–400 KB 就卡死）都比走节点差三个数量级。
+`release-assets.githubusercontent.com` 只服务于 GitHub Release 大文件下载，走代理是唯一可用姿势。

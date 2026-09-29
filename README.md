@@ -11,7 +11,7 @@
 | --- | --- | --- | --- |
 | `sources/repcz-tool/` | github | [`Repcz/Tool@X` / sing-box`](https://github.com/Repcz/Tool/tree/X/sing-box) | 规则集 (`Rules/`) + v1.14.x 客户端/服务端配置模板 |
 | `sources/pk-box/` | github | [`huixiao666/pk-box@main` / beta`](https://github.com/huixiao666/pk-box/tree/main/beta) | 多版本 1.14.0-beta.* 配置模板(含中文文件名与 `注释/` 子目录) |
-| `sources/gist-chizi/` | gist | [gist `35f59df7…`](https://gist.github.com/CHIZI-0618/35f59df7b17bf66ea988d775aaf76152) | CHIZI-0618 自用 `config.jsonc`(DNS 部分替换为公共 DNS) |
+| `sources/gist-chizi/` | gist | [gist `35f59df7…`](https://gist.github.com/CHIZI-0618/35f59df7b17bf66ea988d775aaf76152) | CHIZI-0618 自用 `config.json`(DNS 部分替换为公共 DNS) |
 | `sources/ref1nd-docs/` | github | [`reF1nd/sing-box@reF1nd-testing` / docs`](https://github.com/reF1nd/sing-box/tree/reF1nd-testing/docs) | reF1nd 分支官方文档(中英 `.md` + `schema.json` + 安装脚本) |
 | `sources/boxproxy-box/` | github | [`boxproxy/box@test`](https://github.com/boxproxy/box/tree/test) | Android Root 透明代理模块(Box for Root,Magisk/KernelSU/APatch),mihomo/sing-box/xray 统一管理(整仓镜像) |
 

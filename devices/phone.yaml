@@ -1,0 +1,6 @@
+# Phone overlay（v1 占位）
+# 待用户确认 Root + boxproxy 方案后，在 v1.5 补全。
+# 部署模式已定：boxproxy 核心+配置模式。
+
+version: 1
+device: phone

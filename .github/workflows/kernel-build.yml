@@ -80,8 +80,10 @@ jobs:
           cd config-repo
           pip install pyyaml -q
           python build/build.py --device router --out dist/router.json
+          python build/build.py --device phone --out dist/phone.json
           ../dist-bin/sing-box-check check -c dist/router.json
-          echo "check OK"
+          ../dist-bin/sing-box-check check -c dist/phone.json
+          echo "check OK (router + phone)"
 
       - name: Update kernel.lock
         env:
@@ -132,6 +134,7 @@ jobs:
           path: |
             dist-bin/
             config-repo/dist/router.json
+            config-repo/dist/phone.json
           retention-days: 30
 
       - name: Commit kernel.lock

@@ -1,6 +1,41 @@
-# Phone overlay（v1 占位）
-# 待用户确认 Root + boxproxy 方案后，在 v1.5 补全。
-# 部署模式已定：boxproxy 核心+配置模式。
+# Phone overlay（v1.5）
+# 部署：boxproxy 核心+配置模式
+#   1. sing-box-android-arm64 → /data/adb/box/bin/sing-box
+#   2. phone.json             → /data/adb/box/sing-box/config.json
+#   3. settings.ini: bin_name="sing-box"（network_mode="tun"）
+# 参考：CHIZI-0618 tun 模板（已按 reF1nd 新栈改写，不写 stack）
 
 version: 1
 device: phone
+
+# ---- TUN 入站：手机不用 auto_redirect（那是路由器 fw4 的），boxproxy 管网络 ----
+inbound_tun:
+  type: tun
+  tag: tun-in
+  # 不写 stack：使用 sing-tun 新栈
+  auto_route: true
+  address: ["172.18.0.1/30", "fdfe:dcba:9876::1/126"]
+  # 按包名分流（Android）：include_package 白名单 / exclude_package 黑名单
+  # 二选一，按需填包名；都留空 = 全部走 TUN
+  # include_package: ["com.example.app"]
+  # exclude_package: ["com.android.bank"]
+
+# ---- 按应用分流表（独立模块）：package_name 路由规则 ----
+# 优先级高于意图规则；包名填 Android applicationId
+package_rules: []
+  # - package_name: ["com.tencent.mm"]
+  #   outbound: DIRECT
+  # - package_name: ["com.google.android.youtube"]
+  #   outbound: PROXY
+
+log:
+  level: info
+
+experimental:
+  clash_api:
+    external_controller: 127.0.0.1:9090
+    default_mode: rule
+  cache_file:
+    enabled: true
+    path: /data/adb/box/sing-box/cache.db
+    store_dns: true

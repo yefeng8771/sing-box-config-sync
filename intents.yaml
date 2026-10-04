@@ -1,0 +1,112 @@
+# 契约草案 v2（待确认）：混合规则集方案
+# 基础分流用 SagerNet 官方（稳定），增值分类用 Repcz（粒度细）
+# Repcz 用 commit pin 版本，每周 review diff 后再升级，不无脑跟日更
+# 规则：同一个意图只写一次；tag 命名：repcz- 前缀标明来源
+
+version: 1
+
+# ---- 规则集声明 ----
+rule_sets:
+  # === SagerNet 官方：基础分流，update_interval 自动跟 ===
+  - tag: geosite-cn
+    url: https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/{tag}.srs
+    format: binary
+    update_interval: 24h
+  - tag: geoip-cn
+    url: https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/{tag}.srs
+    format: binary
+    update_interval: 24h
+  - tag: geosite-geolocation-!cn
+    url: https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/{tag}.srs
+    format: binary
+    update_interval: 24h
+
+  # === Repcz：增值分类，commit pin，每周人工放行 ===
+  # pin: d7c4a24adf4d66de9cd5138b310f49f961d68079（2026-10-03）
+  # 升级流程：sync 检测到 Rules/ 变化 → 变更卡片 → 人确认 → 改 pin
+  - tag: repcz-ai
+    url: https://raw.githubusercontent.com/Repcz/Tool/d7c4a24adf4d66de9cd5138b310f49f961d68079/sing-box/Rules/AI.srs
+    format: binary
+  - tag: repcz-openai
+    url: https://raw.githubusercontent.com/Repcz/Tool/d7c4a24adf4d66de9cd5138b310f49f961d68079/sing-box/Rules/OpenAI.srs
+    format: binary
+  - tag: repcz-claude
+    url: https://raw.githubusercontent.com/Repcz/Tool/d7c4a24adf4d66de9cd5138b310f49f961d68079/sing-box/Rules/Claude.srs
+    format: binary
+  - tag: repcz-game
+    url: https://raw.githubusercontent.com/Repcz/Tool/d7c4a24adf4d66de9cd5138b310f49f961d68079/sing-box/Rules/Game.srs
+    format: binary
+  - tag: repcz-ads
+    url: https://raw.githubusercontent.com/Repcz/Tool/d7c4a24adf4d66de9cd5138b310f49f961d68079/sing-box/Rules/Ads_SukkaW.srs
+    format: binary
+  # 流媒体（Netflix/Disney/YouTube/Spotify）：按需加，tag 命名 repcz-<name>
+  # 游戏细分（Steam/Nintendo/Xbox）：按需加
+
+# ---- 意图：一类流量只写一次 ----
+# dns: proxy | direct | reject
+# route: 出站 tag（DIRECT / REJECT / PROXY / 地区组名）
+intents:
+  - name: 广告拦截
+    rule_set: [repcz-ads]
+    dns: reject
+    route: REJECT
+
+  - name: 国内直连
+    rule_set: [geosite-cn, geoip-cn]
+    dns: direct
+    route: DIRECT
+
+  - name: AI
+    rule_set: [repcz-ai, repcz-openai, repcz-claude]
+    dns: proxy
+    route: 美国
+
+  - name: 游戏
+    rule_set: [repcz-game]
+    dns: proxy
+    route: 美国
+
+  - name: 国外通用
+    rule_set: [geosite-geolocation-!cn]
+    dns: proxy
+    route: PROXY
+
+# ---- 分组：构建器自动生成 selector / urltest ----
+groups:
+  - name: PROXY
+    type: selector
+    outbounds: [DIRECT, AUTO, 美国, 日本, 新加坡]
+    default: DIRECT
+
+  - name: AUTO
+    type: urltest
+    providers: all
+    url: https://www.gstatic.com/generate_204
+    interval: 3m
+    tolerance: 50
+
+  - name: 美国
+    type: urltest
+    providers: all
+    include: "(?i)美国|\\x{1F1FA}\\x{1F1F8}|\\bUS\\b"
+    url: https://www.gstatic.com/generate_204
+    interval: 3m
+
+  - name: 日本
+    type: urltest
+    providers: all
+    include: "(?i)日本|\\x{1F1EF}\\x{1F1F5}|\\bJP\\b"
+    url: https://www.gstatic.com/generate_204
+    interval: 3m
+
+  - name: 新加坡
+    type: urltest
+    providers: all
+    include: "(?i)新加坡|\\x{1F1F8}\\x{1F1EC}|\\bSG\\b"
+    url: https://www.gstatic.com/generate_204
+    interval: 3m
+
+  - name: Final
+    type: selector
+    outbounds: [PROXY, DIRECT]
+    default: PROXY

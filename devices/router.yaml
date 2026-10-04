@@ -1,0 +1,49 @@
+# Router overlay（待确认，v1 范围）
+# 与 base 合并后生成 router.json；phone.yaml v1 留空
+
+version: 1
+device: router
+
+# ---- TUN 入站：新栈 + auto_redirect，不写 stack ----
+inbound_tun:
+  type: tun
+  tag: tun-in
+  # stack: 不写 → 使用 sing-tun 新栈（1.15+，multi_queue 的前提）
+  auto_route: true
+  auto_redirect: true
+  # multi_queue: true            # v1 先不加，等基准跑稳
+  route_exclude_address_set: [geoip-cn]   # 国内 IP 内核预匹配直接放行
+  # 注意：auto_redirect_disable_mark_mode 与 route_exclude_address_set 冲突，二选一
+  dns_mode: hijack
+  # include_mac_address: []      # 按设备分流时填
+  # exclude_mac_address: []
+
+# ---- DNS：真实 IP（不用 fakeip）----
+dns:
+  servers:
+    - tag: proxy-dns
+      type: https
+      server: 1.1.1.1
+      detour: PROXY
+    - tag: direct-dns
+      type: udp
+      server: 223.5.5.5
+  # 骨架：广告 reject → 国内/国外分流 → evaluate+match_response 兜底 → final proxy
+  # 缓存：optimistic（DNS）+ store_dns（cache_file）；不用 independent_cache / store_rdrc
+  # 可选：race 竞速（Repcz / pk-box 共识写法）
+
+log:
+  level: info   # 不低于 info
+
+route:
+  hijack_dns: true   # 路由规则里配 hijack-dns，配合 TUN dns_mode: hijack
+
+experimental:
+  clash_api:
+    external_controller: 0.0.0.0:9090
+    default_mode: rule
+  cache_file:
+    enabled: true
+    path: /etc/sing-box/cache.db
+    store_dns: true
+    # store_fakeip: 不用（真实 IP 方案）

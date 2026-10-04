@@ -115,8 +115,10 @@ def build_dns(intents):
     }
 
 
-def build_route(intents, rule_sets):
+def build_route(intents, rule_sets, extra_rules=None):
     rules = [{"action": "sniff"}, {"protocol": "dns", "action": "hijack-dns"}]
+    # package_rules（phone）优先级高于意图规则
+    rules.extend(extra_rules or [])
     for it in intents:
         rules.append({"rule_set": it["rule_set"], "outbound": it["route"]})
     rs_decl = []
@@ -169,18 +171,41 @@ def build_tun_inbound(dev):
     tun = dev.get("inbound_tun", {})
     inbound = {
         "type": "tun",
-        "tag": "tun-in",
-        "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
-        "auto_route": tun.get("auto_route", True),
-        "auto_redirect": tun.get("auto_redirect", True),
+        "tag": tun.get("tag", "tun-in"),
+        "address": tun.get("address", ["172.19.0.1/30", "fdfe:dcba:9876::1/126"]),
     }
-    for k in ("route_exclude_address_set", "route_address_set",
+    # 数据驱动：device yaml 里写什么就透传什么（不写 stack = 新栈）
+    for k in ("auto_route", "auto_redirect",
+              "route_exclude_address_set", "route_address_set",
               "include_mac_address", "exclude_mac_address",
-              "dns_mode", "multi_queue",
+              "include_package", "exclude_package",
+              "dns_mode", "multi_queue", "platform",
               "auto_redirect_disable_mark_mode"):
         if tun.get(k) is not None:
             inbound[k] = tun[k]
     return inbound
+
+
+def build_experimental(dev):
+    """experimental 段由 device yaml 决定（router/phone 路径、监听地址不同）。"""
+    exp = dev.get("experimental", {})
+    out = {}
+    if "cache_file" in exp:
+        out["cache_file"] = exp["cache_file"]
+    if "clash_api" in exp:
+        out["clash_api"] = exp["clash_api"]
+    return out
+
+
+def build_package_rules(dev):
+    """phone 专属：package_name 应用分流表，优先级高于意图规则。"""
+    rules = []
+    for pr in dev.get("package_rules", []) or []:
+        rules.append({
+            "package_name": pr["package_name"],
+            "outbound": pr["outbound"],
+        })
+    return rules
 
 
 def fake_providers():
@@ -236,7 +261,7 @@ def main() -> int:
     rule_sets = intents_doc.get("rule_sets", [])
 
     dns = build_dns(intents)
-    route = build_route(intents, rule_sets)
+    route = build_route(intents, rule_sets, build_package_rules(dev))
 
     cfg = {
         "log": {"level": dev.get("log", {}).get("level", "info"), "timestamp": True},
@@ -245,17 +270,7 @@ def main() -> int:
         "outbounds": build_groups(intents_doc.get("groups", [])),
         "route": route,
         "providers": providers,
-        "experimental": {
-            "cache_file": {
-                "enabled": True,
-                "path": "/etc/sing-box/cache.db",
-                "store_dns": True,
-            },
-            "clash_api": {
-                "external_controller": "0.0.0.0:9090",
-                "default_mode": "rule",
-            },
-        },
+        "experimental": build_experimental(dev),
     }
 
     try:

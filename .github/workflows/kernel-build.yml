@@ -93,7 +93,7 @@ jobs:
           import json, sys, hashlib
           from pathlib import Path
           sha = sys.argv[1]
-          dist = Path("dist-bin")
+          dist = Path("../dist-bin")  # workflow root，config-repo 之外
           hashes = {}
           for f in sorted(dist.glob("sing-box-*")):
               if f.name in ("SHA256SUMS", "sing-box-check"):

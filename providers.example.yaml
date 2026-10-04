@@ -1,0 +1,33 @@
+# Provider 插槽示例（待确认）
+# 真实订阅绝不进仓库：放 GitHub Secrets 或本地 providers.yaml（gitignore）
+# CI 用 type: local 的假 provider 跑 sing-box check
+# 字段严格按 reF1nd configuration/provider/ 文档
+
+version: 1
+
+providers:
+  # 示例：远程订阅（真实 URL 从环境变量注入）
+  - type: remote
+    tag: airport-1
+    url: ${SUB_URL_1}
+    path: providers/airport-1.json
+    include: ".*"
+    exclude: "(?i)官网|剩余流量|到期"
+    user_agent: sing-box
+    # http_client: default        # 显式指定，1.14 后不再隐式默认
+    update_interval: 24h
+    health_check:
+      enabled: true
+      url: https://www.gstatic.com/generate_204
+      interval: 10m
+
+  # 示例：本地文件（CI check 用这个，节点全是假的）
+  - type: local
+    tag: ci-fake
+    path: providers/ci-fake.json
+    # ci-fake.json 内容：{"outbounds":[{"type":"direct","tag":"fake-node"}]}
+
+# 注入方式（构建时）：
+#   1. 从 Secrets 读 SUB_URL_*，渲染成本文件 providers.yaml
+#   2. providers.yaml 与模板合并，生成最终配置
+#   3. dist/ 产物不提交仓库（或推私有位置）

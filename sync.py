@@ -3,13 +3,18 @@
 
 Reads sources.json, fetches each source via `git` sparse-checkout (for repo
 sub-directories) or the GitHub Gist API (for gists), writes the results into
-sources/<name>/, and records each source's commit/version into .sync-meta.json.
+their dest dirs, and records each source's commit/version into .sync-meta.json.
 
 This script ONLY synchronizes files and metadata. It does NOT git commit — the
-CI workflow is responsible for committing & pushing any detected changes.
+CI workflow is responsible for opening a PR with any detected changes.
 
 Source types:
-  - "github": clone repo@branch with --sparse, checkout only `path`, copy to `dest`
+  - "github": clone repo@branch with --sparse, checkout the given path(s),
+              copy each path's contents to its dest.
+              `path` (string) is the legacy single-path form, equivalent to
+              `paths: [{"path": <path>, "dest": <dest>}]`.
+              `paths` (array of {path, dest}) syncs several sub-directories
+              of one repo in a single clone.
   - "gist"  : fetch gist via API, write each file into `dest`
 """
 import json
@@ -80,40 +85,59 @@ def safe_replace(src_dir: Path, dest: Path):
     tmp_dest.rename(dest)
 
 
+def _source_paths(src):
+    """Return [(path, dest_path)] for a github source.
+
+    Legacy: `path` (string) + `dest`  -> single entry, old behavior.
+    New: `paths` (array of {path, dest}) -> one entry per path.
+    """
+    if "paths" in src:
+        return [(p["path"].strip("/"), ROOT / p["dest"]) for p in src["paths"]]
+    return [(src.get("path", "").strip("/"), ROOT / src["dest"])]
+
+
 def sync_github(src, token):
     repo = src["repo"]
     branch = src["branch"]
-    path = src.get("path", "").strip("/")
-    dest = ROOT / src["dest"]
     name = src["name"]
+    entries = _source_paths(src)
+    paths = [p for p, _ in entries]
     work = ROOT / f".tmp-{name}"
     if work.exists():
         shutil.rmtree(work)
     url = f"https://github.com/{repo}.git"
-    # --filter=blob:none + --depth=1 + --sparse: minimal download, only the path we need
+    # --filter=blob:none + --depth=1 + --sparse: minimal download, only the paths we need
     _run(["git", "clone", "--filter=blob:none", "--sparse", "--depth=1",
           "-b", branch, url, str(work)])
-    if path:
-        _run(["git", "-C", str(work), "sparse-checkout", "set", path])
+    nonempty = [p for p in paths if p]
+    if nonempty:
+        _run(["git", "-C", str(work), "sparse-checkout", "set"] + nonempty)
     else:
         # path empty => mirror the whole branch tree: drop sparse so every
         # blob/dir is materialized (clone used --filter=blob:none + --sparse).
         _run(["git", "-C", str(work), "sparse-checkout", "disable"])
     commit = _run(["git", "-C", str(work), "rev-parse", "HEAD"]).strip()
-    src_dir = work / path if path else work
-    if not src_dir.exists():
-        raise RuntimeError(f"path '{path}' not found in {repo}@{branch}")
-    file_count = sum(1 for _ in src_dir.rglob("*")
-                     if _.is_file() and ".git" not in _.parts)
-    safe_replace(src_dir, dest)
+    total_files = 0
+    for path, dest in entries:
+        src_dir = work / path if path else work
+        if not src_dir.exists():
+            raise RuntimeError(f"path '{path}' not found in {repo}@{branch}")
+        total_files += sum(1 for _ in src_dir.rglob("*")
+                           if _.is_file() and ".git" not in _.parts)
+        safe_replace(src_dir, dest)
     shutil.rmtree(work, ignore_errors=True)
     tree_url = f"https://github.com/{repo}/tree/{branch}"
-    if path:
-        tree_url += f"/{path}"
-    return {
-        "type": "github", "repo": repo, "branch": branch, "path": path,
-        "commit": commit, "files": file_count, "url": tree_url,
+    meta = {
+        "type": "github", "repo": repo, "branch": branch,
+        "commit": commit, "files": total_files, "url": tree_url,
     }
+    # Keep legacy `path` key for single-path sources; use `paths` otherwise.
+    if "paths" in src:
+        meta["paths"] = [{"path": p, "dest": str(d.relative_to(ROOT))}
+                         for p, d in entries]
+    else:
+        meta["path"] = paths[0] if paths else ""
+    return meta
 
 
 def sync_gist(src, token):
@@ -147,7 +171,7 @@ def sync_gist(src, token):
 
 
 def main():
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    token = os.environ.get("GITHUB_TOKEN", "")
     if token:
         print("Using GITHUB_TOKEN for API auth (rate-limit friendly).")
     else:

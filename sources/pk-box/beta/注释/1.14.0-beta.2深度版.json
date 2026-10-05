@@ -1,0 +1,1924 @@
+{
+  // =========================================================================
+  // 第 1 行：$schema — JSON Schema 声明
+  // =========================================================================
+  // 这不是 sing-box 必需的配置项，而是给编辑器（如 VSCode）用的
+  // 作用：让编辑器能够提供自动补全、语法校验、字段提示等功能[reference:1]
+  // 如果你不使用支持 JSON Schema 的编辑器，这一行可以完全删除
+  "$schema": "https://sing-box.sagernet.org/schemas/config.json",
+
+  // =========================================================================
+  // 第 2 行开始：log — 日志配置模块
+  // =========================================================================
+  // log 对象控制 sing-box 运行时输出日志的详细程度和格式
+  // 日志对于排查问题、调试规则、观察流量走向至关重要
+  "log": {
+
+    // 第 3 行：level — 日志级别
+    // 可选值（按详细程度从高到低）：
+    //   trace  — 最详细，输出所有调试信息（每个连接、每个 DNS 查询、每个数据包）
+    //   debug  — 调试级别，比 trace 少一些内部细节
+    //   info   — 信息级别（默认），只输出重要的运行信息
+    //   warn   — 警告级别，仅输出警告和错误
+    //   error  — 错误级别，仅输出错误
+    //   fatal  — 致命错误级别，仅输出导致程序退出的错误
+    //   panic  — Panic 级别，仅输出 panic 信息
+    // 设置为 trace 可以让你看到最完整的运行细节，便于深度调试
+    "level": "trace",
+
+    // 第 4 行：timestamp — 是否在每条日志前添加时间戳
+    // true  → 开启，日志格式：2026-07-28 10:00:00 [trace] xxxx
+    // false → 关闭，日志格式：[trace] xxxx
+    // 建议开启，方便追踪问题发生的时间点
+    "timestamp": true
+
+    // 第 4 行结束 — log 对象的大括号将在第 5 行关闭
+  },
+
+  // =========================================================================
+  // 第 6 行开始：dns — DNS 解析配置模块
+  // =========================================================================
+  // DNS 是 sing-box 流量分流的**核心**模块[reference:2]
+  // 它控制每个域名由哪个 DNS 服务器解析，以及如何处理解析结果
+  // DNS 配置结构：servers（服务器列表）+ rules（规则列表）+ 全局参数[reference:3]
+  "dns": {
+
+    // -------- 第 7 行：servers — DNS 服务器列表 --------
+    // servers 是一个数组，定义所有可用的 DNS 服务器
+    // 每个服务器必须有唯一的 tag（标签），供后续规则引用[reference:4]
+    // 数组用方括号 [ ] 包裹，每个元素用逗号分隔
+    "servers": [
+
+      // ========== 第 8-9 行：DNS 服务器 1 — hosts 静态映射 ==========
+      // type: "hosts" — 从预定义列表或系统 hosts 文件读取域名→IP 映射[reference:5]
+      // 作用：跳过 DNS 查询，直接返回 IP 地址
+      // 优点：加速解析、防止 DNS 污染、确保关键域名始终可解析
+      {
+        // 第 9 行：type — 服务器类型
+        // "hosts" 表示这是一个静态 hosts 解析器
+        "type": "hosts",
+
+        // 第 10 行：tag — 唯一标识符
+        // 其他规则通过这个 tag 来引用此 DNS 服务器
+        // 命名建议：使用有意义的名称，如 hosts_fix、local_dns 等
+        "tag": "hosts_fix",
+
+        // 第 11 行开始：predefined — 预定义的域名→IP 映射表
+        // 这是一个对象（键值对），键是域名，值是该域名对应的 IP 地址数组
+        // 当需要解析这些域名时，直接返回预设的 IP，不发起网络 DNS 查询
+        "predefined": {
+
+          // 第 12 行：cloudflare-dns.com → Cloudflare 的 DoH 服务器
+          // 1.1.1.1 和 1.0.0.1 是 Cloudflare 的公共 DNS 服务器
+          // 数组中有两个 IP，提供冗余和负载均衡
+          "cloudflare-dns.com": [
+            "1.1.1.1",   // 主 DNS 服务器
+            "1.0.0.1"    // 备用 DNS 服务器
+          ],
+
+          // 第 13 行：dns.google → Google 的 DoH 服务器
+          // 8.8.8.8 和 8.8.4.4 是 Google 的公共 DNS 服务器
+          "dns.google": [
+            "8.8.8.8",   // 主 DNS 服务器
+            "8.8.4.4"    // 备用 DNS 服务器
+          ],
+
+          // 第 14 行：dns.alidns.com → 阿里云的 DoH/DoQ 服务器
+          // 223.5.5.5 和 223.6.6.6 是阿里云的公共 DNS 服务器
+          // 在中国大陆访问速度较快
+          "dns.alidns.com": [
+            "223.5.5.5", // 主 DNS 服务器
+            "223.6.6.6"  // 备用 DNS 服务器
+          ],
+
+          // 第 15 行：dns.adguard.com → AdGuard 的 DoH 服务器
+          // 94.140.14.15 和 94.140.15.16 是 AdGuard 的公共 DNS 服务器
+          // AdGuard DNS 自带广告和追踪器过滤功能
+          "dns.adguard.com": [
+            "94.140.14.15", // 主 DNS 服务器
+            "94.140.15.16"  // 备用 DNS 服务器
+          ],
+
+          // 第 16 行：dns.quad9.net → Quad9 的 DoH 服务器
+          // 9.9.9.9 和 149.112.112.112 是 Quad9 的公共 DNS 服务器
+          // Quad9 主打安全保护，会拦截已知的恶意域名
+          "dns.quad9.net": [
+            "9.9.9.9",         // 主 DNS 服务器
+            "149.112.112.112"  // 备用 DNS 服务器
+          ],
+
+          // 第 17 行：cdn.jsdelivr.net → jsDelivr CDN 服务器
+          // 这是全球最大的开源 CDN 之一，用于分发规则集文件
+          // 预置 IP 可以加速规则集下载，避免 DNS 解析延迟
+          "cdn.jsdelivr.net": [
+            "104.16.89.20", // CDN 服务器 IP
+            "104.16.90.20"  // CDN 备用服务器 IP
+          ],
+
+          // 第 18 行：raw.githubusercontent.com → GitHub Raw 内容服务器
+          // 用于下载 raw 格式的文件（如规则集、配置文件等）
+          // 预置 IP 可以防止 DNS 污染导致无法下载规则集
+          "raw.githubusercontent.com": [
+            "185.199.108.133", // GitHub Raw 服务器 IP
+            "185.199.109.133", // GitHub Raw 备用服务器 IP
+            "185.199.110.133", // GitHub Raw 备用服务器 IP
+            "185.199.111.133"  // GitHub Raw 备用服务器 IP
+          ]
+
+          // 第 18 行结束 — predefined 对象的大括号
+        }
+
+        // 第 19 行 — hosts 服务器的大括号关闭
+      },
+
+      // ========== 第 20-21 行：DNS 服务器 2 — 本地系统 DNS ==========
+      // type: "local" — 读取操作系统的 DNS 设置[reference:6]
+      // Linux:   /etc/resolv.conf
+      // Windows: 网络适配器中的 DNS 设置
+      // macOS:   scutil 命令读取的系统 DNS 配置
+      {
+        // 第 21 行：type — "local" 表示使用系统 DNS
+        "type": "local",
+
+        // 第 22 行：tag — 唯一标识符
+        // 后续规则通过 "local-dns" 引用此服务器
+        "tag": "local-dns"
+
+        // 第 22 行结束 — local 服务器的大括号关闭
+      },
+
+      // ========== 第 23-24 行：DNS 服务器 3 — Fake-IP ==========
+      // type: "fakeip" — 返回虚拟 IP 地址，用于代理分流[reference:7]
+      // 原理：对需要代理的域名返回 198.18.0.0/15 范围内的虚拟 IP
+      // 后续路由规则匹配这些虚拟 IP 时，自动将流量导向代理出站
+      // 优点：实现域名级别的分流，无需 SNI 嗅探
+      {
+        // 第 24 行：type — "fakeip" 表示 Fake-IP 模式
+        "type": "fakeip",
+
+        // 第 25 行：tag — 唯一标识符
+        "tag": "fakeip",
+
+        // 第 26 行：inet4_range — IPv4 虚拟 IP 地址池
+        // 198.18.0.0/15 的范围：198.18.0.0 ~ 198.19.255.255
+        // 总共 131072 个 IP 地址，足以容纳大量域名的映射
+        // 这些 IP 地址是 RFC 2544 保留的测试专用地址段，不会与公网 IP 冲突
+        "inet4_range": "198.18.0.0/15"
+
+        // 第 26 行结束 — fakeip 服务器的大括号关闭
+      },
+
+      // ========== 第 27-28 行：DNS 服务器 4 — 阿里 DNS over QUIC ==========
+      // type: "quic" — 使用 QUIC 协议（基于 UDP 的 HTTP/3）[reference:8]
+      // QUIC 是 Google 开发的传输层协议，具有低延迟、连接复用、抗丢包等优点
+      // 阿里 DNS 是国内首个支持 QUIC 的公共 DNS 服务
+      {
+        // 第 28 行：type — "quic" 表示使用 QUIC 协议
+        "type": "quic",
+
+        // 第 29 行：tag — 唯一标识符
+        "tag": "alidns-quic",
+
+        // 第 30 行：detour — 指定用于连接此 DNS 服务器的出站[reference:9]
+        // "DIRECT" 表示直连，不经过任何代理
+        // 这样 DNS 查询请求不会走代理，避免 DNS 泄露和循环依赖
+        "detour": "DIRECT",
+
+        // 第 31 行：domain_resolver — 用于解析服务器域名的 DNS 标签[reference:10]
+        // 先用 "hosts_fix"（静态 hosts）解析 dns.alidns.com 的 IP
+        // 避免通过本 DNS 服务器解析自己的域名（循环依赖问题）
+        "domain_resolver": "hosts_fix",
+
+        // 第 32 行：server — DNS 服务器地址[reference:11]
+        // 这里是域名格式，sing-box 会通过 domain_resolver 解析它
+        "server": "dns.alidns.com"
+
+        // 第 32 行结束 — alidns-quic 服务器的大括号关闭
+      },
+
+      // ========== 第 33-34 行：DNS 服务器 5 — Cloudflare DoH ==========
+      // type: "https" — DNS over HTTPS（DNS 加密传输）[reference:12]
+      // 优点：加密 DNS 查询，防止中间人篡改和窃听
+      // Cloudflare 的 1.1.1.1 是全球最快的公共 DNS 之一
+      {
+        // 第 34 行：type — "https" 表示 DNS over HTTPS
+        "type": "https",
+
+        // 第 35 行：tag — 唯一标识符
+        "tag": "cf-dns",
+
+        // 第 36 行：detour — 用于连接此 DNS 服务器的出站[reference:13]
+        // "📦 sing-box" 是一个出站选择器，通常指向代理节点
+        // 这意味着 Cloudflare DoH 查询会通过代理发出
+        // 注意：这里的 emoji 是标签名称的一部分，不是注释
+        "detour": "📦 sing-box",
+
+        // 第 37 行：domain_resolver — 用于解析服务器域名的 DNS 标签[reference:14]
+        "domain_resolver": "hosts_fix",
+
+        // 第 38 行：server — DNS 服务器地址[reference:15]
+        "server": "cloudflare-dns.com"
+
+        // 第 38 行结束 — cf-dns 服务器的大括号关闭
+      },
+
+      // ========== 第 39-40 行：DNS 服务器 6 — AdGuard DoH ==========
+      // type: "https" — DNS over HTTPS
+      // AdGuard DNS 自带广告和追踪器过滤，可以在 DNS 层面屏蔽广告
+      {
+        // 第 40 行：type — "https" 表示 DNS over HTTPS
+        "type": "https",
+
+        // 第 41 行：tag — 唯一标识符
+        "tag": "adguard-dns",
+
+        // 第 42 行：detour — 用于连接此 DNS 服务器的出站
+        "detour": "📦 sing-box",
+
+        // 第 43 行：domain_resolver — 用于解析服务器域名的 DNS 标签
+        "domain_resolver": "hosts_fix",
+
+        // 第 44 行：server — DNS 服务器地址
+        "server": "dns.adguard.com"
+
+        // 第 44 行结束 — adguard-dns 服务器的大括号关闭
+      },
+
+      // ========== 第 45-46 行：DNS 服务器 7 — Quad9 DoH ==========
+      // type: "https" — DNS over HTTPS
+      // Quad9 主打安全保护，使用多个威胁情报源拦截恶意域名
+      {
+        // 第 46 行：type — "https" 表示 DNS over HTTPS
+        "type": "https",
+
+        // 第 47 行：tag — 唯一标识符
+        "tag": "quad9-doh",
+
+        // 第 48 行：detour — 用于连接此 DNS 服务器的出站
+        "detour": "📦 sing-box",
+
+        // 第 49 行：domain_resolver — 用于解析服务器域名的 DNS 标签
+        "domain_resolver": "hosts_fix",
+
+        // 第 50 行：server — DNS 服务器地址
+        "server": "dns.quad9.net"
+
+        // 第 50 行结束 — quad9-doh 服务器的大括号关闭
+      },
+
+      // ========== 第 51-52 行：DNS 服务器 8 — Google DoH ==========
+      // type: "https" — DNS over HTTPS
+      // Google 的 8.8.8.8 是世界上最知名的公共 DNS 之一
+      {
+        // 第 52 行：type — "https" 表示 DNS over HTTPS
+        "type": "https",
+
+        // 第 53 行：tag — 唯一标识符
+        "tag": "google-dns",
+
+        // 第 54 行：detour — 用于连接此 DNS 服务器的出站
+        "detour": "📦 sing-box",
+
+        // 第 55 行：domain_resolver — 用于解析服务器域名的 DNS 标签
+        "domain_resolver": "hosts_fix",
+
+        // 第 56 行：server — DNS 服务器地址
+        "server": "dns.google"
+
+        // 第 56 行结束 — google-dns 服务器的大括号关闭
+      }
+
+      // 第 57 行 — servers 数组的大括号关闭
+    ],
+
+    // -------- 第 58 行开始：rules — DNS 规则列表 --------
+    // rules 是一个数组，定义 DNS 查询的匹配和处理规则[reference:16]
+    // 规则从上到下依次匹配，先命中先执行
+    // 每条规则可以指定匹配条件（domain、rule_set、query_type 等）和执行动作（server、reject 等）
+    "rules": [
+
+      // ========== 第 59-60 行：DNS 规则 1 — 屏蔽小米相关域名 ==========
+      // 目的：屏蔽小米系域名的 DNS 解析，防止数据上传到小米服务器
+      // 匹配条件：域名后缀匹配 + 规则集匹配
+      // 执行动作：reject（拒绝解析，返回空响应）
+      {
+        // 第 60 行：domain_suffix — 匹配域名后缀列表
+        // 只要域名以这些后缀结尾，就匹配此规则
+        // 例如：api.xiaomi.com、data.miui.com 等都会被匹配
+        "domain_suffix": [
+          ".xiaomi.com",        // 小米主域名
+          ".miui.com",          // MIUI 系统相关
+          ".mi.com",            // 小米商城
+          ".xiaomiyoupin.com",  // 小米有品
+          ".mijia.com"          // 米家智能家居
+        ],
+
+        // 第 61 行：rule_set — 额外规则集
+        // 除了域名后缀匹配，还必须匹配这些规则集
+        // 规则集在 route.rule_set 中定义（见后文）
+        "rule_set": [
+          "BlockHttpDNS",       // 屏蔽 HTTP DNS 请求
+          "AdGuardSDNSFilter",  // AdGuard SDK 过滤列表
+          "ads"                 // 广告域名列表
+        ],
+
+        // 第 62 行：action — 执行动作
+        // "reject" 表示拒绝解析，DNS 查询将返回空响应
+        // 效果：这些域名无法被解析，相当于被屏蔽
+        "action": "reject"
+
+        // 第 62 行结束 — 规则 1 的大括号关闭
+      },
+
+      // ========== 第 63-64 行：DNS 规则 2 — 只允许 IPv4（A 记录） ==========
+      // 目的：完全禁用 IPv6，只解析 IPv4 地址
+      // 匹配条件：查询类型不是 A（即不是 IPv4 查询）
+      // 执行动作：reject（拒绝解析）
+      {
+        // 第 64 行：query_type — 匹配 DNS 查询类型
+        // "A" 表示 IPv4 地址查询
+        "query_type": "A",
+
+        // 第 65 行：invert — 反向匹配
+        // true 表示匹配条件取反
+        // 即：查询类型不是 A 的请求，才匹配此规则
+        "invert": true,
+
+        // 第 66 行：action — 执行动作
+        // "reject" 表示拒绝解析
+        // 效果：所有 AAAA（IPv6）、HTTPS（DNS SVCB）等非 A 查询都被拒绝
+        "action": "reject"
+
+        // 第 66 行结束 — 规则 2 的大括号关闭
+      },
+
+      // ========== 第 67-68 行：DNS 规则 3 — 广告域名评估（Quad9） ==========
+      // 目的：使用 Quad9 DoH 评估域名是否在广告列表中
+      // action: "evaluate" — 只评估不响应，结果打上 tag[reference:17]
+      // 后续规则通过 match_response 匹配这个 tag 来决定如何处理
+      {
+        // 第 68 行：rule_set — 匹配规则集
+        // "geosite-category-ads-all" 是来自 geosite 的广告域名集合
+        // 这个规则集在 route.rule_set 中定义（见后文）
+        "rule_set": "geosite-category-ads-all",
+
+        // 第 69 行：action — 执行动作
+        // "evaluate" 表示评估但不立即返回结果
+        "action": "evaluate",
+
+        // 第 70 行：server — 使用的 DNS 服务器
+        // 使用 "quad9-doh" 服务器来解析这个域名
+        "server": "quad9-doh",
+
+        // 第 71 行：tag — 标记
+        // 此评估结果将被标记为 "ad-q9"
+        // 后续规则可以通过 match_response: "ad-q9" 来匹配
+        "tag": "ad-q9"
+
+        // 第 71 行结束 — 规则 3 的大括号关闭
+      },
+
+      // ========== 第 72-73 行：DNS 规则 4 — 广告域名评估（AdGuard） ==========
+      // 目的：使用 AdGuard DoH 评估域名是否在广告列表中
+      // 与规则 3 类似，但使用不同的 DNS 服务器，提供冗余
+      {
+        // 第 73 行：rule_set — 匹配规则集
+        // "geosite_adguard" 是 AdGuard 的广告域名集合
+        "rule_set": "geosite_adguard",
+
+        // 第 74 行：action — "evaluate" 表示评估
+        "action": "evaluate",
+
+        // 第 75 行：server — 使用 "adguard-dns" 服务器解析
+        "server": "adguard-dns",
+
+        // 第 76 行：tag — 标记为 "ad-ag"
+        "tag": "ad-ag"
+
+        // 第 76 行结束 — 规则 4 的大括号关闭
+      },
+
+      // ========== 第 77-78 行：DNS 规则 5 — 广告域名响应（Quad9 结果） ==========
+      // 目的：匹配规则 3 的评估结果，对广告域名执行响应
+      // match_response 匹配之前 evaluate 的 tag[reference:18]
+      {
+        // 第 78 行：match_response — 匹配之前评估的 tag
+        // 如果某个域名的评估结果是 "ad-q9"（即规则 3 匹配到了广告域名）
+        // 则执行此规则
+        "match_response": "ad-q9",
+
+        // 第 79 行：action — 执行动作
+        // "respond" 表示返回响应（通常返回 0.0.0.0 实现屏蔽）
+        "action": "respond",
+
+        // 第 80 行：race — 并发执行
+        // true 表示如果有多个匹配的响应规则，并发执行，取最快返回的结果
+        "race": true
+
+        // 第 80 行结束 — 规则 5 的大括号关闭
+      },
+
+      // ========== 第 81-82 行：DNS 规则 6 — 广告域名响应（AdGuard 结果） ==========
+      // 目的：匹配规则 4 的评估结果，对广告域名执行响应
+      {
+        // 第 82 行：match_response — 匹配 "ad-ag" 标签
+        "match_response": "ad-ag",
+
+        // 第 83 行：action — "respond" 返回响应
+        "action": "respond",
+
+        // 第 84 行：race — 并发执行
+        "race": true
+
+        // 第 84 行结束 — 规则 6 的大括号关闭
+      },
+
+      // ========== 第 85-86 行：DNS 规则 7 — 私有网络域名 ==========
+      // 目的：私有网络域名（如 .local、.lan 等）使用本地 DNS 解析
+      // 这些域名通常只在局域网内有效，不应该走公共 DNS
+      {
+        // 第 86 行：rule_set — 匹配私有网络域名规则集
+        // "private" 规则集包含 .local、.lan、.internal 等私有域名
+        "rule_set": "private",
+
+        // 第 87 行：server — 使用的 DNS 服务器
+        // 使用 "local-dns"（系统 DNS）解析私有域名
+        "server": "local-dns"
+
+        // 第 87 行结束 — 规则 7 的大括号关闭
+      },
+
+      // ========== 第 88-89 行：DNS 规则 8 — 国内域名 ==========
+      // 目的：中国国内常用域名使用本地 DNS 解析
+      // 包括：中国网站、微软国内节点、苹果国内节点、游戏国内节点等
+      {
+        // 第 89 行：rule_set — 匹配国内域名规则集列表
+        "rule_set": [
+          "cn",            // 中国网站域名（.cn、国内服务商等）
+          "microsoft-cn",  // 微软中国节点（Office 365 中国版等）
+          "apple-cn",      // 苹果中国节点（iCloud 中国版等）
+          "games-cn"       // 游戏中国节点（Steam 中国、腾讯游戏等）
+        ],
+
+        // 第 90 行：server — 使用的 DNS 服务器
+        // 使用 "local-dns"（系统 DNS）解析国内域名
+        // 这样国内域名走本地 DNS，速度快且不会被 GFW 干扰
+        "server": "local-dns"
+
+        // 第 90 行结束 — 规则 8 的大括号关闭
+      },
+
+      // ========== 第 91-92 行：DNS 规则 9 — jsDelivr CDN ==========
+      // 目的：jsDelivr CDN 域名强制使用本地 DNS 解析
+      // jsDelivr 是全球最大的开源 CDN，用于分发规则集文件
+      // 强制本地解析可以避免走代理降低下载速度
+      {
+        // 第 92 行：domain_suffix — 匹配域名后缀
+        // 任何以 "cdn.jsdelivr.net" 结尾的域名都匹配此规则
+        "domain_suffix": "cdn.jsdelivr.net",
+
+        // 第 93 行：server — 使用的 DNS 服务器
+        // 使用 "local-dns"（系统 DNS）解析
+        "server": "local-dns"
+
+        // 第 93 行结束 — 规则 9 的大括号关闭
+      },
+
+      // ========== 第 94-95 行：DNS 规则 10 — 代理域名 → Fake-IP ==========
+      // 目的：需要代理的域名返回 Fake-IP（虚拟 IP）
+      // 这些域名的解析结果将返回 198.18.0.0/15 范围内的虚拟 IP
+      // 后续路由规则匹配这些虚拟 IP 时，自动将流量导向代理出站
+      {
+        // 第 95 行：rule_set — 匹配需要代理的域名规则集列表
+        "rule_set": [
+          "Google",      // Google 所有服务（搜索、Gmail、Drive 等）
+          "GoogleFCM",   // Google Firebase Cloud Messaging（推送通知）
+          "Android",     // Android 系统相关（OTA 更新、Play 服务等）
+          "proxy",       // 通用代理域名列表
+          "gfw",         // GFW 屏蔽的域名列表
+          "ai",          // AI 服务（OpenAI、Claude、HuggingFace 等）
+          "telegram",    // Telegram 即时通讯
+          "netflix",     // Netflix 流媒体
+          "disney",      // Disney+ 流媒体
+          "youtube",     // YouTube 视频平台
+          "spotify",     // Spotify 音乐平台
+          "primevideo"   // Amazon Prime Video 流媒体
+        ],
+
+        // 第 96 行：server — 使用的 DNS 服务器
+        // 使用 "fakeip" 服务器，返回虚拟 IP 地址
+        "server": "fakeip",
+
+        // 第 97 行：rewrite_ttl — 重写 TTL（Time To Live）
+        // 300 秒 = 5 分钟
+        // 覆盖 DNS 响应中的 TTL 值，控制缓存时间
+        // 较短的 TTL 可以更快地响应节点变化
+        "rewrite_ttl": 300
+
+        // 第 97 行结束 — 规则 10 的大括号关闭
+      },
+
+      // ========== 第 98-99 行：DNS 规则 11 — 兜底解析（Cloudflare） ==========
+      // 目的：对于未匹配以上任何规则的域名，先用 Cloudflare DoH 评估
+      // action: "evaluate" — 只评估不响应，结果打上 tag
+      {
+        // 第 99 行：action — "evaluate" 表示评估
+        "action": "evaluate",
+
+        // 第 100 行：server — 使用 "cf-dns"（Cloudflare DoH）解析
+        "server": "cf-dns",
+
+        // 第 101 行：tag — 标记为 "final-cf"
+        "tag": "final-cf"
+
+        // 第 101 行结束 — 规则 11 的大括号关闭
+      },
+
+      // ========== 第 102-103 行：DNS 规则 12 — 匹配 Cloudflare 兜底结果 ==========
+      // 目的：匹配规则 11 的评估结果，返回响应
+      {
+        // 第 103 行：match_response — 匹配 "final-cf" 标签
+        "match_response": "final-cf",
+
+        // 第 104 行：action — "respond" 返回响应
+        "action": "respond",
+
+        // 第 105 行：race — 并发执行
+        "race": true
+
+        // 第 105 行结束 — 规则 12 的大括号关闭
+      },
+
+      // ========== 第 106-107 行：DNS 规则 13 — 兜底解析（Google） ==========
+      // 目的：同时使用 Google DoH 评估，提供冗余
+      // speculative: true — 开启推测式解析[reference:19]
+      // 在缓存过期前提前预取，加速后续查询
+      {
+        // 第 107 行：action — "evaluate" 表示评估
+        "action": "evaluate",
+
+        // 第 108 行：server — 使用 "google-dns" 解析
+        "server": "google-dns",
+
+        // 第 109 行：tag — 标记为 "final-gg"
+        "tag": "final-gg",
+
+        // 第 110 行：speculative — 推测式解析
+        // true 表示启用：在缓存过期前就开始刷新
+        "speculative": true
+
+        // 第 110 行结束 — 规则 13 的大括号关闭
+      },
+
+      // ========== 第 111-112 行：DNS 规则 14 — 匹配 Google 兜底结果 ==========
+      {
+        // 第 112 行：match_response — 匹配 "final-gg" 标签
+        "match_response": "final-gg",
+
+        // 第 113 行：action — "respond" 返回响应
+        "action": "respond",
+
+        // 第 114 行：race — 并发执行
+        "race": true
+
+        // 第 114 行结束 — 规则 14 的大括号关闭
+      },
+
+      // ========== 第 115-116 行：DNS 规则 15 — 兜底解析（Quad9） ==========
+      {
+        // 第 116 行：action — "evaluate" 表示评估
+        "action": "evaluate",
+
+        // 第 117 行：server — 使用 "quad9-doh" 解析
+        "server": "quad9-doh",
+
+        // 第 118 行：tag — 标记为 "final-q9"
+        "tag": "final-q9",
+
+        // 第 119 行：speculative — 推测式解析
+        "speculative": true
+
+        // 第 119 行结束 — 规则 15 的大括号关闭
+      },
+
+      // ========== 第 120-121 行：DNS 规则 16 — 匹配 Quad9 兜底结果 ==========
+      {
+        // 第 121 行：match_response — 匹配 "final-q9" 标签
+        "match_response": "final-q9",
+
+        // 第 122 行：action — "respond" 返回响应
+        "action": "respond",
+
+        // 第 123 行：race — 并发执行
+        "race": true
+
+        // 第 123 行结束 — 规则 16 的大括号关闭
+      },
+
+      // ========== 第 124-125 行：DNS 规则 17 — 兜底解析（AdGuard） ==========
+      {
+        // 第 125 行：action — "evaluate" 表示评估
+        "action": "evaluate",
+
+        // 第 126 行：server — 使用 "adguard-dns" 解析
+        "server": "adguard-dns",
+
+        // 第 127 行：tag — 标记为 "final-ag"
+        "tag": "final-ag",
+
+        // 第 128 行：speculative — 推测式解析
+        "speculative": true
+
+        // 第 128 行结束 — 规则 17 的大括号关闭
+      },
+
+      // ========== 第 129-130 行：DNS 规则 18 — 匹配 AdGuard 兜底结果 ==========
+      {
+        // 第 130 行：match_response — 匹配 "final-ag" 标签
+        "match_response": "final-ag",
+
+        // 第 131 行：action — "respond" 返回响应
+        "action": "respond",
+
+        // 第 132 行：race — 并发执行
+        "race": true
+
+        // 第 132 行结束 — 规则 18 的大括号关闭
+      },
+
+      // ========== 第 133-134 行：DNS 规则 19 — 兜底拒绝 ==========
+      // 目的：如果以上所有规则都没有匹配，直接拒绝解析
+      // 这是最后的安全网，防止未匹配的域名走默认路径造成 DNS 泄露
+      {
+        // 第 134 行：action — "reject" 拒绝解析
+        "action": "reject"
+
+        // 第 134 行结束 — 规则 19 的大括号关闭
+      }
+
+      // 第 135 行 — rules 数组的大括号关闭
+    ],
+
+    // -------- 第 136 行开始：DNS 全局参数 --------
+    // 这些参数控制 DNS 模块的全局行为[reference:20]
+
+    // 第 137 行：strategy — 全局 DNS 解析策略[reference:21]
+    // "ipv4_only" 表示只返回 IPv4 记录（A 记录），不解析 IPv6（AAAA）
+    // 其他可选值：prefer_ipv4、prefer_ipv6、ipv6_only
+    "strategy": "ipv4_only",
+
+    // 第 138 行：timeout — DNS 查询超时时间
+    // "10s" 表示每个 DNS 查询最多等待 10 秒
+    // 超过此时间未收到响应，则视为超时失败
+    "timeout": "10s",
+
+    // 第 139 行：cache_capacity — DNS 缓存最大条目数
+    // 16384 表示最多缓存 16384 条 DNS 记录
+    // 缓存可以减少重复查询，提高解析速度
+    "cache_capacity": 16384,
+
+    // 第 140 行开始：optimistic — 乐观缓存策略[reference:22]
+    // 乐观缓存：在缓存过期前就开始刷新，而不是等到过期后才查询
+    // 可以减少用户感知的延迟
+    "optimistic": {
+
+      // 第 141 行：enabled — 是否启用乐观缓存
+      // true 表示启用
+      "enabled": true,
+
+      // 第 142 行：timeout — 乐观缓存刷新时间
+      // "5m0s" 表示在缓存过期前 5 分钟开始刷新
+      "timeout": "5m0s"
+
+      // 第 142 行结束 — optimistic 对象的大括号关闭
+    }
+
+    // 第 143 行 — dns 对象的大括号关闭
+  },
+
+  // =========================================================================
+  // 第 144 行开始：http_clients — HTTP 客户端配置
+  // =========================================================================
+  // 用于 DoH（DNS over HTTPS）等 HTTP 请求的客户端配置
+  // 控制 HTTP 连接的参数，如协议版本、窗口大小等
+  "http_clients": [
+
+    // 第 145 行：HTTP 客户端 1 — 默认客户端
+    {
+      // 第 146 行：tag — 唯一标识符
+      "tag": "default",
+
+      // 第 147 行：version — HTTP 协议版本
+      // 2 表示 HTTP/2，支持多路复用，性能更好
+      "version": 2,
+
+      // 第 148 行：stream_receive_window — 流接收窗口大小
+      // 0 表示使用默认值（通常为 256KB）
+      // 用于 HTTP/2 流量控制
+      "stream_receive_window": 0,
+
+      // 第 149 行：connection_receive_window — 连接接收窗口大小
+      // 0 表示使用默认值（通常为 32MB）
+      // 用于 HTTP/2 连接级别的流量控制
+      "connection_receive_window": 0
+
+      // 第 149 行结束 — HTTP 客户端的大括号关闭
+    }
+
+    // 第 150 行 — http_clients 数组的大括号关闭
+  ],
+
+  // =========================================================================
+  // 第 151 行开始：inbounds — 入站配置
+  // =========================================================================
+  // 入站定义流量如何进入 sing-box[reference:23]
+  // 这里配置了一个 TUN 虚拟网卡，用于接管系统所有流量
+  "inbounds": [
+
+    // ========== 第 152-153 行：TUN 虚拟网卡入站 ==========
+    // type: "tun" — 创建虚拟网卡[reference:24]
+    // TUN 模式是 sing-box 最强大的入站方式，可以接管整个系统的网络流量
+    // 支持 Linux、Windows 和 macOS[reference:25]
+    {
+      // 第 153 行：type — 入站类型
+      // "tun" 表示 TUN 虚拟网卡
+      "type": "tun",
+
+      // 第 154 行：tag — 唯一标识符
+      "tag": "tun-in",
+
+      // 第 155 行：mtu — 最大传输单元[reference:26]
+      // 1500 是以太网标准的 MTU 值
+      // 决定了单个数据包的最大大小，影响网络性能
+      "mtu": 1500,
+
+      // 第 156 行：address — TUN 网卡的虚拟 IP 地址[reference:27]
+      // "10.8.0.1/24" 表示本机 TUN 网卡的 IP 为 10.8.0.1，子网掩码为 255.255.255.0
+      // 这个 IP 是虚拟的，只在 TUN 网络内部有效
+      "address": "10.8.0.1/24",
+
+      // 第 157 行：dns_mode — DNS 处理模式
+      // "hijack" 表示劫持所有 DNS 请求，强制由 sing-box 的 DNS 模块处理
+      // 其他可选值：fakeip、redir-host 等
+      "dns_mode": "hijack",
+
+      // 第 158 行：dns_address — 虚拟 DNS 服务器地址
+      // "10.8.0.2" 是 TUN 网络内的 DNS 服务器地址
+      // 所有 DNS 请求会被重定向到这个地址，由 sing-box 处理
+      "dns_address": "10.8.0.2",
+
+      // 第 159 行：auto_route — 自动添加路由表[reference:28]
+      // true 表示自动将系统路由指向 TUN 接口
+      // 效果：所有系统流量都会经过 TUN 网卡进入 sing-box
+      "auto_route": true,
+
+      // 第 160 行：strict_route — 严格路由模式[reference:29]
+      // true 表示启用严格路由，防止流量泄漏
+      // 会添加更严格的路由规则，确保所有流量都经过 TUN
+      "strict_route": true,
+
+      // 第 161 行：udp_timeout — UDP NAT 会话超时时间[reference:30]
+      // "1m0s" 表示 UDP 映射关系保持 1 分钟
+      // 超过此时间没有 UDP 流量，NAT 映射将被清除
+      "udp_timeout": "1m0s",
+
+      // 第 162 行：udp_nat_max — UDP NAT 最大会话数
+      // 4096 表示最多同时维护 4096 个 UDP NAT 映射
+      // 超过此数量，旧的映射会被淘汰
+      "udp_nat_max": 4096,
+
+      // 第 163 行：stack — 网络栈模式[reference:31]
+      // "mixed" 表示混合模式
+      // 其他可选值：system（系统栈）、gvisor（Google 的 gVisor 栈）
+      // mixed 模式在性能和兼容性之间取得平衡
+      "stack": "mixed"
+
+      // 第 163 行结束 — TUN 入站的大括号关闭
+    }
+
+    // 第 164 行 — inbounds 数组的大括号关闭
+  ],
+
+  // =========================================================================
+  // 第 165 行开始：outbounds — 出站配置
+  // =========================================================================
+  // 出站定义流量如何出去[reference:32]
+  // 包括：直连、代理、拒绝、选择器（selector）、自动测速（urltest）等类型
+  "outbounds": [
+
+    // ========== 第 166-167 行：出站 1 — 最终选择器（🚦 FINAL） ==========
+    // type: "selector" — 从多个出站中选择一个[reference:33]
+    // 这是路由的最终出口，所有未匹配路由规则的流量都会到这里
+    {
+      // 第 167 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 168 行：tag — 唯一标识符
+      // 使用 emoji 和文字组合，便于识别
+      "tag": "🚦 FINAL",
+
+      // 第 169 行：outbounds — 可选的出站列表
+      // 用户可以从这些出站中选择一个作为最终出口
+      "outbounds": [
+        "📦 sing-box",    // 走代理
+        "DIRECT",         // 直连
+        "❌ REJECT-DROP"  // 拒绝并丢弃
+      ],
+
+      // 第 170 行：default — 默认选择的出站
+      // 如果没有手动选择，默认使用 "📦 sing-box"（走代理）
+      "default": "📦 sing-box",
+
+      // 第 171 行：interrupt_exist_connections — 切换时是否中断现有连接
+      // true 表示当切换出站时，中断所有使用旧出站的现有连接
+      // 确保切换后所有新连接都使用新的出站
+      "interrupt_exist_connections": true
+
+      // 第 171 行结束 — 选择器的大括号关闭
+    },
+
+    // ========== 第 172-173 行：出站 2 — 拒绝并丢弃（❌ REJECT-DROP） ==========
+    // type: "block" — 阻止连接
+    // 所有匹配此出站的连接都会被拒绝，且数据包被丢弃
+    {
+      // 第 173 行：type — "block" 表示阻止
+      "type": "block",
+
+      // 第 174 行：tag — 唯一标识符
+      "tag": "❌ REJECT-DROP"
+
+      // 第 174 行结束 — block 的大括号关闭
+    },
+
+    // ========== 第 175-176 行：出站 3 — 直连（DIRECT） ==========
+    // type: "direct" — 直接连接，不经过任何代理[reference:34]
+    // 所有匹配此出站的流量直接发送到目标服务器
+    {
+      // 第 176 行：type — "direct" 表示直连
+      "type": "direct",
+
+      // 第 177 行：tag — 唯一标识符
+      "tag": "DIRECT",
+
+      // 第 178 行：domain_resolver — 域名解析器
+      // 使用 "local-dns"（系统 DNS）解析域名
+      // 直连流量使用系统 DNS 可以避免 DNS 泄露
+      "domain_resolver": "local-dns"
+
+      // 第 178 行结束 — direct 的大括号关闭
+    },
+
+    // ========== 第 179-180 行：出站 4 — 代理选择器（📦 sing-box） ==========
+    // type: "selector" — 从多个代理节点中选择一个
+    // 这是所有代理流量的入口，内部再根据测速结果自动选择最优节点
+    {
+      // 第 180 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 181 行：tag — 唯一标识符
+      "tag": "📦 sing-box",
+
+      // 第 182 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "🟢 自动-测速",   // 基于延迟测速自动选择最快节点
+        "🔵 自动-稳定"    // 基于稳定性自动选择最稳定节点
+      ],
+
+      // 第 183 行：default — 默认选择
+      // 默认使用 "🟢 自动-测速"（追求最低延迟）
+      "default": "🟢 自动-测速",
+
+      // 第 184 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 184 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 185-186 行：出站 5 — 自动测速组（🟢 自动-测速） ==========
+    // type: "urltest" — 通过 URL 测速自动选择最快节点[reference:35]
+    // 定期对每个节点进行延迟测试，选择延迟最低的节点
+    {
+      // 第 186 行：type — "urltest" 表示自动测速
+      "type": "urltest",
+
+      // 第 187 行：tag — 唯一标识符
+      "tag": "🟢 自动-测速",
+
+      // 第 188 行：outbounds — 待测速的节点列表
+      // 此处应替换为实际的代理节点标签（如 VLESS、Trojan 等）
+      // 当前 "节点名称" 是占位符，需要用户自行替换
+      "outbounds": [
+        "节点名称"   // TODO: 替换为实际节点标签
+      ],
+
+      // 第 189 行：url — 测速目标 URL
+      // http://www.gstatic.com/generate_204 是 Google 的连通性测试地址
+      // 返回 HTTP 204 状态码（无内容），适合用于测速
+      "url": "http://www.gstatic.com/generate_204",
+
+      // 第 190 行：interval — 测速间隔
+      // "10m0s" 表示每 10 分钟进行一次测速
+      "interval": "10m0s",
+
+      // 第 191 行：tolerance — 延迟容忍度（毫秒）
+      // 100 表示延迟相差 100ms 以内的节点视为同等质量
+      // 避免频繁切换节点
+      "tolerance": 100,
+
+      // 第 192 行：idle_timeout — 空闲超时时间
+      // "30m0s" 表示如果 30 分钟没有流量，停止测速
+      "idle_timeout": "30m0s"
+
+      // 第 192 行结束 — urltest 的大括号关闭
+    },
+
+    // ========== 第 193-194 行：出站 6 — 自动稳定组（🔵 自动-稳定） ==========
+    // type: "urltest" — 通过 URL 测速自动选择最稳定节点
+    // 与 "🟢 自动-测速" 类似，但参数更保守，追求稳定性而非最低延迟
+    {
+      // 第 194 行：type — "urltest" 表示自动测速
+      "type": "urltest",
+
+      // 第 195 行：tag — 唯一标识符
+      "tag": "🔵 自动-稳定",
+
+      // 第 196 行：outbounds — 待测速的节点列表
+      // 此处应替换为实际的代理节点标签
+      "outbounds": [
+        "节点名称"   // TODO: 替换为实际节点标签
+      ],
+
+      // 第 197 行：url — 测速目标 URL
+      "url": "http://www.gstatic.com/generate_204",
+
+      // 第 198 行：interval — 测速间隔
+      // "15m0s" 表示每 15 分钟测速一次（比自动-测速组更慢）
+      "interval": "15m0s",
+
+      // 第 199 行：tolerance — 延迟容忍度（毫秒）
+      // 30 表示更严格的容忍度，延迟差超过 30ms 就会切换
+      "tolerance": 30,
+
+      // 第 200 行：idle_timeout — 空闲超时时间
+      // "1h0m0s" 表示 1 小时无流量才停止测速（比自动-测速组更长）
+      "idle_timeout": "1h0m0s"
+
+      // 第 200 行结束 — urltest 的大括号关闭
+    },
+
+    // ========== 第 201-202 行：出站 7 — Google 服务选择器（🧭 Google Services） ==========
+    // type: "selector" — 用于 Google 相关服务的出站选择
+    {
+      // 第 202 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 203 行：tag — 唯一标识符
+      "tag": "🧭 Google Services",
+
+      // 第 204 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "📦 sing-box",  // 走代理
+        "DIRECT"        // 直连
+      ],
+
+      // 第 205 行：default — 默认选择
+      // Google 服务默认走代理
+      "default": "📦 sing-box",
+
+      // 第 206 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 206 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 207-208 行：出站 8 — Google FCM 选择器（📬 Google FCM） ==========
+    // FCM = Firebase Cloud Messaging，Google 的推送通知服务
+    {
+      // 第 208 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 209 行：tag — 唯一标识符
+      "tag": "📬 Google FCM",
+
+      // 第 210 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "📦 sing-box",          // 走代理
+        "DIRECT",               // 直连
+        "🧭 Google Services"    // 继承 Google Services 的选择
+      ],
+
+      // 第 211 行：default — 默认走代理
+      "default": "📦 sing-box",
+
+      // 第 212 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 212 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 213-214 行：出站 9 — Apple 选择器（🍎 Apple） ==========
+    // 用于 Apple 相关服务（iCloud、App Store、Apple Music 等）
+    {
+      // 第 214 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 215 行：tag — 唯一标识符
+      "tag": "🍎 Apple",
+
+      // 第 216 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "DIRECT",        // 直连（优先）
+        "📦 sing-box"    // 走代理
+      ],
+
+      // 第 217 行：default — 默认直连
+      // Apple 服务在中国大陆有 CDN 节点，直连速度更快
+      "default": "DIRECT",
+
+      // 第 218 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 218 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 219-220 行：出站 10 — 流媒体选择器（📺 StreamingME） ==========
+    // 用于流媒体服务（Netflix、Disney+、YouTube、Spotify 等）
+    {
+      // 第 220 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 221 行：tag — 唯一标识符
+      "tag": "📺 StreamingME",
+
+      // 第 222 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "📦 sing-box",  // 走代理
+        "DIRECT"        // 直连
+      ],
+
+      // 第 223 行：default — 默认走代理
+      // 流媒体服务通常需要代理才能访问
+      "default": "📦 sing-box",
+
+      // 第 224 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 224 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 225-226 行：出站 11 — Microsoft 选择器（🪟 Microsoft） ==========
+    // 用于 Microsoft 相关服务（Office 365、OneDrive、Windows Update 等）
+    {
+      // 第 226 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 227 行：tag — 唯一标识符
+      "tag": "🪟 Microsoft",
+
+      // 第 228 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "DIRECT",        // 直连（优先）
+        "📦 sing-box"    // 走代理
+      ],
+
+      // 第 229 行：default — 默认直连
+      // Microsoft 服务在中国大陆有 CDN 节点，直连速度更快
+      "default": "DIRECT",
+
+      // 第 230 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 230 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 231-232 行：出站 12 — Telegram 选择器（📠 Telegram） ==========
+    // 用于 Telegram 即时通讯
+    {
+      // 第 232 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 233 行：tag — 唯一标识符
+      "tag": "📠 Telegram",
+
+      // 第 234 行：outbounds — 可选的出站列表
+      // Telegram 只有一个选项：走代理
+      "outbounds": [
+        "📦 sing-box"   // 走代理
+      ],
+
+      // 第 235 行：default — 默认走代理
+      "default": "📦 sing-box",
+
+      // 第 236 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 236 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 237-238 行：出站 13 — 国内流量选择器（🇨🇳 国内流量） ==========
+    // 用于中国国内网站的流量
+    {
+      // 第 238 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 239 行：tag — 唯一标识符
+      "tag": "🇨🇳 国内流量",
+
+      // 第 240 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "DIRECT",        // 直连（优先）
+        "📦 sing-box"    // 走代理
+      ],
+
+      // 第 241 行：default — 默认直连
+      // 国内网站直连速度最快
+      "default": "DIRECT",
+
+      // 第 242 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 242 行结束 — selector 的大括号关闭
+    },
+
+    // ========== 第 243-244 行：出站 14 — GLOBAL 选择器 ==========
+    // 通用全局出站选择器
+    {
+      // 第 244 行：type — "selector" 表示选择器
+      "type": "selector",
+
+      // 第 245 行：tag — 唯一标识符
+      "tag": "GLOBAL",
+
+      // 第 246 行：outbounds — 可选的出站列表
+      "outbounds": [
+        "📦 sing-box",  // 走代理
+        "DIRECT"        // 直连
+      ],
+
+      // 第 247 行：default — 默认走代理
+      "default": "📦 sing-box",
+
+      // 第 248 行：interrupt_exist_connections — 切换时中断现有连接
+      "interrupt_exist_connections": true
+
+      // 第 248 行结束 — selector 的大括号关闭
+    }
+
+    // 第 249 行 — outbounds 数组的大括号关闭
+    // 注意：此处应有实际的节点配置（如 VLESS、Trojan、Shadowsocks 等）
+    // 但原配置中已省略，用 "//节点配置" 代替
+  ],
+
+  // =========================================================================
+  // 第 250 行开始：route — 路由配置
+  // =========================================================================
+  // 路由是 sing-box 的**核心**，决定每个连接走哪个出站[reference:36]
+  // 路由规则从上到下匹配，先命中先执行[reference:37]
+  "route": {
+
+    // -------- 第 251 行开始：rules — 路由规则列表 --------
+    // rules 是一个数组，定义流量匹配和转发规则[reference:38]
+    "rules": [
+
+      // ========== 第 252-253 行：路由规则 1 — 协议嗅探 ==========
+      // action: "sniff" — 嗅探连接协议[reference:39]
+      // 通过分析流量特征识别协议类型（如 TLS、HTTP、QUIC 等）
+      // 识别出的协议信息可以用于后续规则的匹配
+      {
+        // 第 253 行：action — "sniff" 表示嗅探
+        "action": "sniff"
+
+        // 第 253 行结束 — sniff 的大括号关闭
+      },
+
+      // ========== 第 254-255 行：路由规则 2 — DNS 劫持 ==========
+      // 匹配 DNS 请求（端口 53 或 dns 协议），劫持到 sing-box 的 DNS 模块处理
+      {
+        // 第 255 行：type — "logical" 表示逻辑规则
+        "type": "logical",
+
+        // 第 256 行：mode — "or" 表示或模式
+        // 满足任一子规则即触发
+        "mode": "or",
+
+        // 第 257 行：rules — 子规则列表
+        "rules": [
+          { "port": 53 },              // 子规则 1：目标端口为 53（DNS 默认端口）
+          { "protocol": "dns" }        // 子规则 2：协议为 dns
+        ],
+
+        // 第 258 行：action — "hijack-dns" 表示劫持 DNS
+        // 所有 DNS 请求被重定向到 sing-box 的 DNS 模块处理
+        "action": "hijack-dns"
+
+        // 第 258 行结束 — logical 的大括号关闭
+      },
+
+      // ========== 第 259-260 行：路由规则 3 — 拒绝 IPv6 ==========
+      // 匹配所有 IPv6 流量，直接拒绝
+      {
+        // 第 260 行：ip_version — 匹配 IP 版本
+        // 6 表示 IPv6
+        "ip_version": 6,
+
+        // 第 261 行：action — "reject" 表示拒绝
+        "action": "reject"
+
+        // 第 261 行结束 — reject 的大括号关闭
+      },
+
+      // ========== 第 262-263 行：路由规则 4 — jsDelivr CDN 直连 ==========
+      // jsDelivr CDN 域名直连，不走代理
+      {
+        // 第 263 行：domain_suffix — 匹配域名后缀
+        "domain_suffix": "cdn.jsdelivr.net",
+
+        // 第 264 行：outbound — 指定出站
+        // 使用 "DIRECT" 直连
+        "outbound": "DIRECT"
+
+        // 第 264 行结束 — domain_suffix 的大括号关闭
+      },
+
+      // ========== 第 265-266 行：路由规则 5 — 国内域名走国内流量 ==========
+      // 匹配中国国内域名和 IP，走国内流量出站
+      {
+        // 第 266 行：rule_set — 匹配规则集列表
+        "rule_set": [
+          "cn",       // 中国域名（.cn、国内服务商等）
+          "cnip",     // 中国 IP 地址段
+          "games-cn"  // 游戏国内节点
+        ],
+
+        // 第 267 行：outbound — 指定出站
+        // 使用 "🇨🇳 国内流量" 出站（默认直连）
+        "outbound": "🇨🇳 国内流量"
+
+        // 第 267 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 268-269 行：路由规则 6 — 微软国内走 Microsoft ==========
+      {
+        // 第 269 行：rule_set — 匹配微软国内规则集
+        "rule_set": "microsoft-cn",
+
+        // 第 270 行：outbound — 使用 "🪟 Microsoft" 出站
+        "outbound": "🪟 Microsoft"
+
+        // 第 270 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 271-272 行：路由规则 7 — 苹果国内走 Apple ==========
+      {
+        // 第 272 行：rule_set — 匹配苹果国内规则集
+        "rule_set": "apple-cn",
+
+        // 第 273 行：outbound — 使用 "🍎 Apple" 出站
+        "outbound": "🍎 Apple"
+
+        // 第 273 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 274-275 行：路由规则 8 — 国内应用包名走国内流量 ==========
+      // 通过 Android 应用包名匹配，国内应用走国内流量
+      // package_name_regex 使用正则表达式匹配包名
+      {
+        // 第 275 行：package_name_regex — 匹配 Android 应用包名（正则表达式）
+        "package_name_regex": [
+          "com.tencent.mm",              // 微信
+          "com.tencent.mobileqq",        // QQ
+          "com.taobao.taobao",           // 淘宝
+          "com.eg.android.AlipayGphone", // 支付宝
+          "com.ss.android.ugc.aweme",    // 抖音
+          "tv.danmaku.bili",             // B站
+          "com.baidu.searchbox",         // 百度
+          "com.xunmeng.pinduoduo",       // 拼多多
+          "com.sina.weibo",              // 微博
+          "com.xingin.xhs",              // 小红书
+          "com.kuaishou.nebula",         // 快手
+          "com.zhihu.android",           // 知乎
+          "com.tencent.qqlive",          // 腾讯视频
+          "com.qiyi.video",              // 爱奇艺
+          "com.alibaba.android.rimet",   // 钉钉
+          "com.jingdong.app.mall",       // 京东
+          "com.sankuai.meituan",         // 美团
+          "com.douban.frodo",            // 豆瓣
+          "com.UCMobile",                // UC浏览器
+          "com.tencent.wework",          // 企业微信
+          "com.netease.cloudmusic",      // 网易云音乐
+          "cn.wps.moffice_eng",          // WPS Office
+          "com.unionpay",                // 云闪付
+          "com.bankcomm.*"               // 交通银行（通配符 * 匹配所有子包名）
+        ],
+
+        // 第 276 行：outbound — 使用 "🇨🇳 国内流量" 出站
+        "outbound": "🇨🇳 国内流量"
+
+        // 第 276 行结束 — package_name_regex 的大括号关闭
+      },
+
+      // ========== 第 277-278 行：路由规则 9 — 国外应用包名走代理 ==========
+      // 通过 Android 应用包名匹配，国外应用走代理
+      {
+        // 第 278 行：package_name_regex — 匹配国外应用包名
+        "package_name_regex": [
+          "com.twitter.android",          // Twitter
+          "com.google.android.youtube",   // YouTube
+          "com.google.android.apps.maps", // Google Maps
+          "com.instagram.android",        // Instagram
+          "com.facebook.katana",          // Facebook
+          "com.facebook.orca",            // Facebook Messenger
+          "com.whatsapp",                 // WhatsApp
+          "org.telegram.messenger",       // Telegram
+          "com.discord",                  // Discord
+          "com.reddit.frontpage",         // Reddit
+          "com.spotify.music",            // Spotify
+          "com.netflix.mediaclient",      // Netflix
+          "com.google.android.gm",        // Gmail
+          "com.google.android.apps.docs", // Google Docs
+          "com.google.android.apps.photos", // Google Photos
+          "com.google.android.apps.translate", // Google Translate
+          "com.google.android.keep",      // Google Keep
+          "com.snapchat.android",         // Snapchat
+          "com.tiktok.*",                 // TikTok（通配符匹配所有版本）
+          "com.android.vending"           // Google Play Store
+        ],
+
+        // 第 279 行：outbound — 使用 "📦 sing-box" 出站（走代理）
+        "outbound": "📦 sing-box"
+
+        // 第 279 行结束 — package_name_regex 的大括号关闭
+      },
+
+      // ========== 第 280-281 行：路由规则 10 — 特定域名走代理 ==========
+      // 手动指定的域名列表，强制走代理
+      {
+        // 第 281 行：domain_suffix — 匹配域名后缀列表
+        "domain_suffix": [
+          "huggingface.co",          // Hugging Face AI 平台
+          "sing-box.sagernet.org",   // sing-box 官网
+          ".github.com",             // GitHub（通配符匹配所有子域名）
+          "raw.githubusercontent.com", // GitHub Raw 内容
+          ".372164885.xyz",          // 自定义域名
+          "372164885.xyz",           // 自定义域名（无通配符版本）
+          "org.telegram.group",      // Telegram 群组
+          "api.iturrit.com",         // 自定义 API
+          "deepwiki.com",            // DeepWiki
+          "mobilegym.dev",           // 自定义域名
+          ".colocrossing.com",       // ColoCrossing 托管服务
+          "white-plus.net",          // 自定义域名
+          ".gamer520.com",           // 游戏网站
+          "lg.nxtrace.org"           // 网络追踪服务
+        ],
+
+        // 第 282 行：outbound — 使用 "📦 sing-box" 出站（走代理）
+        "outbound": "📦 sing-box"
+
+        // 第 282 行结束 — domain_suffix 的大括号关闭
+      },
+
+      // ========== 第 283-284 行：路由规则 11 — Fake-IP 网段走代理 ==========
+      // 匹配 DNS 返回的虚拟 IP（198.18.0.0/15），自动走代理
+      // 这是 Fake-IP 模式的核心：所有 Fake-IP 流量都被导向代理
+      {
+        // 第 284 行：ip_cidr — 匹配 IP CIDR 网段
+        // 198.18.0.0/15 是 Fake-IP 的地址池
+        "ip_cidr": "198.18.0.0/15",
+
+        // 第 285 行：outbound — 使用 "📦 sing-box" 出站（走代理）
+        "outbound": "📦 sing-box"
+
+        // 第 285 行结束 — ip_cidr 的大括号关闭
+      },
+
+      // ========== 第 286-287 行：路由规则 12 — Google 服务 ==========
+      {
+        // 第 287 行：rule_set — 匹配 Google 规则集
+        "rule_set": "Google",
+
+        // 第 288 行：outbound — 使用 "🧭 Google Services" 出站
+        "outbound": "🧭 Google Services"
+
+        // 第 288 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 289-290 行：路由规则 13 — Google FCM ==========
+      {
+        // 第 290 行：rule_set — 匹配 GoogleFCM 规则集
+        "rule_set": "GoogleFCM",
+
+        // 第 291 行：outbound — 使用 "📬 Google FCM" 出站
+        "outbound": "📬 Google FCM"
+
+        // 第 291 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 292-293 行：路由规则 14 — 多规则集走 GLOBAL ==========
+      {
+        // 第 293 行：rule_set — 匹配多个规则集
+        "rule_set": [
+          "Android",      // Android 系统相关
+          "proxy",        // 通用代理域名
+          "gfw",          // GFW 屏蔽域名
+          "ai",           // AI 服务
+          "games",        // 游戏
+          "networktest"   // 网络测试
+        ],
+
+        // 第 294 行：outbound — 使用 "GLOBAL" 出站
+        "outbound": "GLOBAL"
+
+        // 第 294 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 295-296 行：路由规则 15 — Telegram ==========
+      {
+        // 第 296 行：rule_set — 匹配 Telegram 规则集
+        "rule_set": "telegram",
+
+        // 第 297 行：outbound — 使用 "📠 Telegram" 出站
+        "outbound": "📠 Telegram"
+
+        // 第 297 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 298-299 行：路由规则 16 — 流媒体服务 ==========
+      {
+        // 第 299 行：rule_set — 匹配流媒体规则集列表
+        "rule_set": [
+          "netflix",     // Netflix
+          "disney",      // Disney+
+          "youtube",     // YouTube
+          "spotify",     // Spotify
+          "primevideo"   // Amazon Prime Video
+        ],
+
+        // 第 300 行：outbound — 使用 "📺 StreamingME" 出站
+        "outbound": "📺 StreamingME"
+
+        // 第 300 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 301-302 行：路由规则 17 — 私有 IP 直连 ==========
+      // 匹配私有 IP 地址（如 192.168.x.x、10.x.x.x、172.16.x.x 等），直接连接
+      {
+        // 第 302 行：ip_is_private — 匹配私有 IP
+        // true 表示匹配所有私有 IP 地址
+        "ip_is_private": true,
+
+        // 第 303 行：outbound — 使用 "DIRECT" 直连
+        "outbound": "DIRECT"
+
+        // 第 303 行结束 — ip_is_private 的大括号关闭
+      },
+
+      // ========== 第 304-305 行：路由规则 18 — NTP 协议直连 ==========
+      // NTP（Network Time Protocol）用于时间同步，直连以保证时间准确
+      {
+        // 第 305 行：protocol — 匹配协议
+        // "ntp" 表示 NTP 时间同步协议
+        "protocol": "ntp",
+
+        // 第 306 行：outbound — 使用 "DIRECT" 直连
+        "outbound": "DIRECT"
+
+        // 第 306 行结束 — protocol 的大括号关闭
+      },
+
+      // ========== 第 307-308 行：路由规则 19 — UDP 危险端口拒绝 ==========
+      // 匹配 UDP 协议的危险端口，直接拒绝
+      // 这些端口常被用于攻击、扫描或已知的安全漏洞
+      {
+        // 第 308 行：network — 匹配网络协议
+        // "udp" 表示 UDP 协议
+        "network": "udp",
+
+        // 第 309 行：port — 匹配端口列表
+        "port": [
+          22,    // SSH（常被暴力破解）
+          23,    // Telnet（明文传输，不安全）
+          25,    // SMTP（邮件，常被用于垃圾邮件）
+          69,    // TFTP（简单文件传输，不安全）
+          110,   // POP3（邮件，明文传输）
+          137,   // NetBIOS（Windows 网络共享）
+          138,   // NetBIOS（Windows 网络共享）
+          139,   // NetBIOS（Windows 网络共享）
+          143,   // IMAP（邮件，明文传输）
+          389,   // LDAP（目录服务，明文传输）
+          445,   // SMB（Windows 文件共享，常被攻击）
+          500,   // IPSec（VPN，常被扫描）
+          514,   // Syslog（系统日志，明文传输）
+          1194,  // OpenVPN（常被扫描）
+          1350,  // 未分配，常用于恶意软件
+          1433,  // MSSQL（数据库，常被攻击）
+          1434,  // MSSQL（数据库，常被攻击）
+          1701,  // L2TP（VPN，常被扫描）
+          1719,  // H.323（VoIP，常被扫描）
+          1720,  // H.323（VoIP，常被扫描）
+          1723,  // PPTP（VPN，不安全）
+          1900,  // UPnP（通用即插即用，常被攻击）
+          2049,  // NFS（网络文件系统，常被攻击）
+          2710,  // 未分配，常用于恶意软件
+          3306,  // MySQL（数据库，常被攻击）
+          3389,  // RDP（远程桌面，常被攻击）
+          4444,  // 常用于恶意软件和后门
+          4500,  // IPSec NAT-T（VPN，常被扫描）
+          5060,  // SIP（VoIP，常被扫描）
+          5061,  // SIP TLS（VoIP，常被扫描）
+          5349,  // STUN/TURN（WebRTC，常被扫描）
+          5350,  // NAT-PMP（端口映射，常被攻击）
+          5353,  // mDNS（多播 DNS，常被扫描）
+          5355,  // LLMNR（链路本地多播名称解析，常被攻击）
+          5432,  // PostgreSQL（数据库，常被攻击）
+          5555,  // 常用于 Android 调试
+          5900,  // VNC（远程桌面，常被攻击）
+          5985,  // WinRM（Windows 远程管理）
+          5986,  // WinRM HTTPS（Windows 远程管理）
+          6379,  // Redis（数据库，常被攻击）
+          6443,  // Kubernetes API（常被扫描）
+          6711,  // 未分配，常用于恶意软件
+          6776,  // 未分配，常用于恶意软件
+          6881,  // BitTorrent（P2P，常被扫描）
+          6882,  // BitTorrent（P2P，常被扫描）
+          6883,  // BitTorrent（P2P，常被扫描）
+          6884,  // BitTorrent（P2P，常被扫描）
+          6885,  // BitTorrent（P2P，常被扫描）
+          6886,  // BitTorrent（P2P，常被扫描）
+          6887,  // BitTorrent（P2P，常被扫描）
+          6888,  // BitTorrent（P2P，常被扫描）
+          6889,  // BitTorrent（P2P，常被扫描）
+          7001,  // WebLogic（应用服务器，常被攻击）
+          7002,  // WebLogic（应用服务器，常被攻击）
+          8612,  // 未分配，常用于恶意软件
+          8766,  // 未分配，常用于恶意软件
+          8767,  // 未分配，常用于恶意软件
+          9200,  // Elasticsearch（搜索引擎，常被攻击）
+          9300,  // Elasticsearch（搜索引擎，常被攻击）
+          9987,  // TeamSpeak（语音通信，常被扫描）
+          11211, // Memcached（缓存，常被攻击）
+          12345, // NetBus（木马，常被攻击）
+          19302, // STUN（WebRTC，常被扫描）
+          27015, // Steam（游戏平台，常被扫描）
+          27016, // Steam（游戏平台，常被扫描）
+          27017, // Steam（游戏平台，常被扫描）
+          27018, // Steam（游戏平台，常被扫描）
+          27019, // Steam（游戏平台，常被扫描）
+          27020, // Steam（游戏平台，常被扫描）
+          27021, // Steam（游戏平台，常被扫描）
+          27022, // Steam（游戏平台，常被扫描）
+          27023, // Steam（游戏平台，常被扫描）
+          27024, // Steam（游戏平台，常被扫描）
+          27025, // Steam（游戏平台，常被扫描）
+          27026, // Steam（游戏平台，常被扫描）
+          27027, // Steam（游戏平台，常被扫描）
+          27028, // Steam（游戏平台，常被扫描）
+          27029, // Steam（游戏平台，常被扫描）
+          27030  // Steam（游戏平台，常被扫描）
+        ],
+
+        // 第 310 行：action — "reject" 表示拒绝
+        "action": "reject"
+
+        // 第 310 行结束 — network 的大括号关闭
+      },
+
+      // ========== 第 311-312 行：路由规则 20 — TCP 危险端口拒绝 ==========
+      // 匹配 TCP 协议的危险端口，直接拒绝
+      {
+        // 第 312 行：network — 匹配网络协议
+        // "tcp" 表示 TCP 协议
+        "network": "tcp",
+
+        // 第 313 行：port — 匹配端口列表
+        "port": [
+          20,    // FTP 数据（明文传输）
+          21,    // FTP 控制（明文传输）
+          22,    // SSH（常被暴力破解）
+          23,    // Telnet（明文传输，不安全）
+          25,    // SMTP（邮件，常被用于垃圾邮件）
+          110,   // POP3（邮件，明文传输）
+          143,   // IMAP（邮件，明文传输）
+          389,   // LDAP（目录服务，明文传输）
+          445,   // SMB（Windows 文件共享，常被攻击）
+          1080,  // SOCKS（代理，常被扫描）
+          1194,  // OpenVPN（常被扫描）
+          1350,  // 未分配，常用于恶意软件
+          1433,  // MSSQL（数据库，常被攻击）
+          1434,  // MSSQL（数据库，常被攻击）
+          1719,  // H.323（VoIP，常被扫描）
+          1720,  // H.323（VoIP，常被扫描）
+          1723,  // PPTP（VPN，不安全）
+          2049,  // NFS（网络文件系统，常被攻击）
+          2710,  // 未分配，常用于恶意软件
+          3306,  // MySQL（数据库，常被攻击）
+          3389,  // RDP（远程桌面，常被攻击）
+          4444,  // 常用于恶意软件和后门
+          5060,  // SIP（VoIP，常被扫描）
+          5061,  // SIP TLS（VoIP，常被扫描）
+          5349,  // STUN/TURN（WebRTC，常被扫描）
+          5432,  // PostgreSQL（数据库，常被攻击）
+          5555,  // 常用于 Android 调试
+          5900,  // VNC（远程桌面，常被攻击）
+          5985,  // WinRM（Windows 远程管理）
+          5986,  // WinRM HTTPS（Windows 远程管理）
+          6379,  // Redis（数据库，常被攻击）
+          6443,  // Kubernetes API（常被扫描）
+          6711,  // 未分配，常用于恶意软件
+          6776,  // 未分配，常用于恶意软件
+          7001,  // WebLogic（应用服务器，常被攻击）
+          7002,  // WebLogic（应用服务器，常被攻击）
+          8612,  // 未分配，常用于恶意软件
+          9200,  // Elasticsearch（搜索引擎，常被攻击）
+          9300,  // Elasticsearch（搜索引擎，常被攻击）
+          10000, // Webmin（管理工具，常被扫描）
+          11211, // Memcached（缓存，常被攻击）
+          12345  // NetBus（木马，常被攻击）
+        ],
+
+        // 第 314 行：action — "reject" 表示拒绝
+        "action": "reject"
+
+        // 第 314 行结束 — network 的大括号关闭
+      },
+
+      // ========== 第 315-316 行：路由规则 21 — 广告域名拒绝 ==========
+      // 匹配广告域名规则集，直接拒绝
+      {
+        // 第 316 行：rule_set — 匹配广告规则集
+        "rule_set": "ads",
+
+        // 第 317 行：action — "reject" 表示拒绝
+        "action": "reject"
+
+        // 第 317 行结束 — rule_set 的大括号关闭
+      },
+
+      // ========== 第 318-319 行：路由规则 22 — STUN/DTLS 协议拒绝 ==========
+      // 匹配 STUN（WebRTC 打洞）和 DTLS（基于 UDP 的 TLS）协议
+      // method: "drop" 表示丢弃数据包，不返回任何响应
+      {
+        // 第 319 行：protocol — 匹配协议列表
+        "protocol": [
+          "stun",  // STUN（WebRTC NAT 穿透）
+          "dtls"   // DTLS（基于 UDP 的 TLS）
+        ],
+
+        // 第 320 行：action — "reject" 表示拒绝
+        "action": "reject",
+
+        // 第 321 行：method — 拒绝方式
+        // "drop" 表示静默丢弃数据包，不返回任何响应
+        "method": "drop"
+
+        // 第 321 行结束 — protocol 的大括号关闭
+      },
+
+      // ========== 第 322-323 行：路由规则 23 — 路由选项 ==========
+      // 设置路由选项，控制 UDP 行为
+      {
+        // 第 323 行：action — "route-options" 表示路由选项
+        "action": "route-options",
+
+        // 第 324 行：udp_disable_domain_unmapping — 禁用 UDP 域名反向映射
+        // true 表示禁用，提高 UDP 性能
+        "udp_disable_domain_unmapping": true,
+
+        // 第 325 行：udp_connect — UDP 连接模式
+        // true 表示启用 UDP 连接模式，改善 UDP 性能
+        "udp_connect": true
+
+        // 第 325 行结束 — route-options 的大括号关闭
+      },
+
+      // ========== 第 326-327 行：路由规则 24 — 蜂窝网络直连 ==========
+      // 当设备使用蜂窝网络（4G/5G）时，所有流量直连
+      {
+        // 第 327 行：network_type — 匹配网络类型
+        // "cellular" 表示蜂窝网络
+        "network_type": "cellular",
+
+        // 第 328 行：outbound — 使用 "DIRECT" 直连
+        "outbound": "DIRECT"
+
+        // 第 328 行结束 — network_type 的大括号关闭
+      },
+
+      // ========== 第 329-330 行：路由规则 25 — Wi-Fi 网络走代理 ==========
+      // 当设备使用 Wi-Fi 网络时，流量走代理
+      {
+        // 第 330 行：network_type — 匹配网络类型
+        // "wifi" 表示 Wi-Fi 网络
+        "network_type": "wifi",
+
+        // 第 331 行：outbound — 使用 "📦 sing-box" 走代理
+        "outbound": "📦 sing-box"
+
+        // 第 331 行结束 — network_type 的大括号关闭
+      },
+
+      // ========== 第 332-333 行：路由规则 26 — 最终默认路由 ==========
+      // 所有未匹配以上任何规则的流量，走最终选择器
+      {
+        // 第 333 行：outbound — 使用 "🚦 FINAL" 出站
+        "outbound": "🚦 FINAL"
+
+        // 第 333 行结束 — outbound 的大括号关闭
+      }
+
+      // 第 334 行 — rules 数组的大括号关闭
+    ],
+
+    // -------- 第 335 行开始：rule_set — 规则集定义 --------
+    // rule_set 是一个数组，定义所有引用的规则集[reference:40]
+    // 规则集可以从远程 URL 下载，也可以本地定义
+    "rule_set": [
+
+      // ========== 规则集 1-7：DustinWin 的规则集 ==========
+      // 来源：https://github.com/DustinWin/ruleset_geodata
+      // 这些规则集包含中国域名、IP、广告、代理等分类
+      {
+        // 第 337 行：type — "remote" 表示远程规则集
+        "type": "remote",
+
+        // 第 338 行：tag — 规则集标签列表
+        "tag": [
+          "cn",            // 中国域名
+          "cnip",          // 中国 IP 地址段
+          "private",       // 私有网络域名
+          "ads",           // 广告域名
+          "proxy",         // 代理域名
+          "ai",            // AI 服务域名
+          "games",         // 游戏域名
+          "microsoft-cn",  // 微软中国节点
+          "apple-cn",      // 苹果中国节点
+          "games-cn",      // 游戏中国节点
+          "networktest",   // 网络测试域名
+          "netflix",       // Netflix
+          "disney",        // Disney+
+          "youtube",       // YouTube
+          "spotify",       // Spotify
+          "primevideo"     // Amazon Prime Video
+        ],
+
+        // 第 339 行：url — 规则集下载 URL
+        // {tag} 会被替换为实际的标签名
+        // 例如：https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cn.srs
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/{tag}.srs",
+
+        // 第 340 行：update_interval — 更新间隔
+        // "48h0m0s" 表示每 48 小时更新一次
+        "update_interval": "48h0m0s"
+
+        // 第 340 行结束 — remote 的大括号关闭
+      },
+
+      // ========== 规则集 8-12：senshinya 的规则集 ==========
+      // 来源：https://github.com/senshinya/singbox_ruleset
+      // 这些规则集包含 Google、Android、广告过滤等
+      {
+        // 第 342 行：type — "remote" 表示远程规则集
+        "type": "remote",
+
+        // 第 343 行：tag — 规则集标签列表
+        "tag": [
+          "Google",          // Google 所有服务
+          "Android",         // Android 系统相关
+          "GoogleFCM",       // Google Firebase Cloud Messaging
+          "BlockHttpDNS",    // 屏蔽 HTTP DNS 请求
+          "AdGuardSDNSFilter" // AdGuard SDK 过滤列表
+        ],
+
+        // 第 344 行：url — 规则集下载 URL
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/{tag}/{tag}.srs",
+
+        // 第 345 行：update_interval — 每 48 小时更新
+        "update_interval": "48h0m0s"
+
+        // 第 345 行结束 — remote 的大括号关闭
+      },
+
+      // ========== 规则集 13-14：MetaCubeX 的规则集 ==========
+      // 来源：https://github.com/MetaCubeX/meta-rules-dat
+      // 这些规则集包含 GFW 屏蔽域名和 Telegram
+      {
+        // 第 347 行：type — "remote" 表示远程规则集
+        "type": "remote",
+
+        // 第 348 行：tag — 规则集标签列表
+        "tag": [
+          "gfw",      // GFW 屏蔽域名
+          "telegram"  // Telegram
+        ],
+
+        // 第 349 行：url — 规则集下载 URL
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/{tag}.srs",
+
+        // 第 350 行：update_interval — 每 48 小时更新
+        "update_interval": "48h0m0s"
+
+        // 第 350 行结束 — remote 的大括号关闭
+      },
+
+      // ========== 规则集 15：217heidai 的 AdGuard 规则集 ==========
+      // 来源：https://github.com/217heidai/adblockfilters
+      // 这个规则集包含 AdGuard 的广告过滤列表
+      {
+        // 第 352 行：type — "remote" 表示远程规则集
+        "type": "remote",
+
+        // 第 353 行：tag — 规则集标签
+        "tag": "geosite_adguard",
+
+        // 第 354 行：url — 规则集下载 URL
+        "url": "https://cdn.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblocksingbox.srs",
+
+        // 第 355 行：update_interval — 每 48 小时更新
+        "update_interval": "48h0m0s"
+
+        // 第 355 行结束 — remote 的大括号关闭
+      },
+
+      // ========== 规则集 16：SagerNet 的 geosite 广告规则集 ==========
+      // 来源：https://github.com/SagerNet/sing-geosite
+      // 这是 sing-box 官方维护的 geosite 规则集
+      {
+        // 第 357 行：type — "remote" 表示远程规则集
+        "type": "remote",
+
+        // 第 358 行：tag — 规则集标签
+        "tag": "geosite-category-ads-all",
+
+        // 第 359 行：url — 规则集下载 URL
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+
+        // 第 360 行：update_interval — 每 48 小时更新
+        "update_interval": "48h0m0s"
+
+        // 第 360 行结束 — remote 的大括号关闭
+      }
+
+      // 第 361 行 — rule_set 数组的大括号关闭
+    ],
+
+    // -------- 第 362 行开始：路由全局参数 --------
+    // 这些参数控制路由模块的全局行为[reference:41]
+
+    // 第 363 行：final — 最终默认出站[reference:42]
+    // 所有未匹配任何路由规则的流量，使用 "🚦 FINAL" 出站
+    "final": "🚦 FINAL",
+
+    // 第 364 行：auto_detect_interface — 自动检测网络接口[reference:43]
+    // true 表示自动检测默认网络接口
+    // 防止在 TUN 模式下出现路由环路[reference:44]
+    "auto_detect_interface": true,
+
+    // 第 365 行：default_domain_resolver — 默认域名解析器
+    // 使用 "alidns-quic"（阿里 DNS over QUIC）作为默认 DNS 解析器
+    // 用于路由规则中需要解析域名的情况
+    "default_domain_resolver": "alidns-quic",
+
+    // 第 366 行：default_http_client — 默认 HTTP 客户端
+    // 使用 "default" HTTP 客户端（在 http_clients 中定义）
+    "default_http_client": "default"
+
+    // 第 366 行结束 — route 对象的大括号关闭
+  },
+
+  // =========================================================================
+  // 第 367 行开始：experimental — 实验性功能配置
+  // =========================================================================
+  // experimental 包含一些实验性功能[reference:45]
+  // 其中 cache_file 用于持久化缓存，提高重启后的性能
+  "experimental": {
+
+    // ========== 第 368 行开始：cache_file — 缓存文件配置 ==========
+    // cache_file 将 DNS 缓存、Fake-IP 映射等持久化到磁盘[reference:46]
+    // 重启 sing-box 后可以恢复缓存，减少重新解析的时间[reference:47]
+    "cache_file": {
+
+      // 第 369 行：enabled — 是否启用缓存文件[reference:48]
+      // true 表示启用
+      "enabled": true,
+
+      // 第 370 行：path — 缓存文件路径[reference:49]
+      // "cache.db" 是默认文件名，会在 sing-box 运行目录下创建
+      "path": "cache.db",
+
+      // 第 371 行：store_fakeip — 是否存储 Fake-IP 映射[reference:50]
+      // true 表示将 Fake-IP 的域名→IP 映射持久化到缓存文件
+      // 重启后可以恢复相同的虚拟 IP 映射，保持连接连续性
+      "store_fakeip": true,
+
+      // 第 372 行：store_dns — 是否存储 DNS 缓存
+      // true 表示将 DNS 解析结果持久化到缓存文件
+      // 重启后可以复用之前的 DNS 缓存，减少解析延迟
+      "store_dns": true
+
+      // 第 372 行结束 — cache_file 对象的大括号关闭
+    }
+
+    // 第 373 行 — experimental 对象的大括号关闭
+  }
+
+  // 第 374 行 — 整个配置对象的最终大括号关闭
+}

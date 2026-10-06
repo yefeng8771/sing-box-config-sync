@@ -1,0 +1,1628 @@
+#!/system/bin/sh
+
+scripts_dir="${0%/*}"
+source /data/adb/box/settings.ini
+
+PROPFILE="/data/adb/modules/box_for_root/module.prop"
+
+sed_file_if_changed() {
+  local file="$1"
+  shift
+
+  local temp_file="${box_run_state}/.${file##*/}.$$.tmp"
+  mkdir -p "${box_run_state}" >/dev/null 2>&1 || true
+  sed "$@" "${file}" > "${temp_file}" || {
+    rm -f "${temp_file}" >/dev/null 2>&1 || true
+    return 1
+  }
+
+  if busybox cmp -s "${temp_file}" "${file}"; then
+    rm -f "${temp_file}" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  mv "${temp_file}" "${file}"
+}
+
+find_packages_uid() {
+  log Info "代理模式: ${proxy_mode}"
+
+  if [ "${proxy_mode}" = "core" ]; then
+    log Info "核心模式已启用，跳过 package 和 gid 处理"
+    > "${uid_list}"
+    return 0
+  fi
+
+  log Info "开始处理 UID/GID 列表"
+  log Debug "应用列表 (来自 package.list.cfg): ${packages_list[*]}"
+  log Debug "GID 列表 (来自 gid.list.cfg): ${gid_list[*]}"
+
+  > "${uid_list}"
+
+  local packages_file request_file map_file
+  packages_file="${system_packages_file:-/data/system/packages.list}"
+  request_file="${box_run_state}/package.uid.request"
+  map_file="${box_run_state}/package.uid.map"
+
+  mkdir -p "${box_run_state}" >/dev/null 2>&1 || true
+  : > "${request_file}"
+  for entry in "${packages_list[@]}"; do
+    local prefix="0"
+    local package="${entry}"
+
+    case "${entry}" in
+      *:*)
+        prefix="${entry%%:*}"
+        package="${entry#*:}"
+        ;;
+    esac
+
+    case "${prefix}" in
+      ''|*[!0-9]*)
+        log Warning "Failure: 用户 \"${prefix}\" 应用: \"${package}\" -> 用户前缀无效，已回退为 0"
+        prefix="0"
+        ;;
+    esac
+
+    if [ -z "${package}" ] || [ "${package}" = "${entry}" ] && [ "${entry}" = "${prefix}" ]; then
+      log Warning "Failure: 用户 \"${prefix}\" 应用: \"${entry}\" -> 包名无效"
+      continue
+    fi
+
+    printf '%s %s %s\n' "${prefix}" "${package}" "${entry}" >> "${request_file}"
+  done
+
+  if [ -s "${request_file}" ] && [ -f "${packages_file}" ]; then
+    busybox awk '
+      NR == FNR { wanted[$2] = 1; next }
+      ($1 in wanted) { print $1 " " $2 }
+    ' "${request_file}" "${packages_file}" > "${map_file}"
+
+    while IFS=' ' read -r prefix package entry; do
+      [ -n "${package}" ] || continue
+
+      local base_uid
+      base_uid=$(busybox awk -v pkg="${package}" '$1 == pkg {print $2; exit}' "${map_file}" 2>/dev/null)
+
+      case "${base_uid}" in
+        ''|*[!0-9]*)
+          log Warning "Failure: 用户 \"${prefix}\" 应用: \"${package}\" -> 未找到"
+          continue
+          ;;
+      esac
+
+      local multiuser_uid=$((base_uid + prefix * 100000))
+      echo "${multiuser_uid}" >> "${uid_list}"
+      log Debug "用户 \"${prefix}\" 应用: \"${package}\" -> ${multiuser_uid}"
+    done < "${request_file}"
+  elif [ -s "${request_file}" ]; then
+    log Warning "Failure: packages.list 不存在: ${packages_file}"
+  fi
+
+  rm -f "${request_file}" "${map_file}" >/dev/null 2>&1 || true
+
+  if [ ${#gid_list[@]} -gt 0 ]; then
+    printf "%s\n" "${gid_list[@]}" >> "${uid_list}"
+    log Debug "GID: ${gid_list[*]} -> 已添加"
+  fi
+
+  if [ -s "${uid_list}" ]; then
+    local uid_count=$(busybox wc -l < "${uid_list}")
+    log Info "UID/GID 列表处理完成: ${uid_count} 条"
+    local temp_uid_list="${box_run_state}/temp_uid.list"
+    busybox sort -un "${uid_list}" > "${temp_uid_list}"
+    mv "${temp_uid_list}" "${uid_list}"
+  fi
+}
+
+log_service_results() {
+    local core_name="$1"
+    local proxy_mode_type="$2"
+    local uids="$3"
+
+    log Info "更新 ${core_name} UID 列表: 模式=${proxy_mode_type}"
+    [ -n "$uids" ] && log Debug "UIDs: ${uids}"
+}
+
+box_check_logs() {
+  # 删除所有内核日志并备份
+  log Info "删除并备份日志文件"
+  (
+    for bin in "${bin_list[@]}"; do
+      if [ -f "${box_run}/${bin}.log" ]; then
+        mv "${box_run}/${bin}.log" "${box_run}/${bin}.old.log"
+      fi
+    done
+    # 删除其他日志文件
+    find "${box_run}" -maxdepth 1 -type f \( -name "root" -o -name "*.inotify.log" \) -exec rm -f {} +
+    find "${box_run_state}" -maxdepth 1 -type f \( -name "*.list" -a ! -name "appuid.list" \) -exec rm -f {} +
+    # 删除一天前的日志
+    find "${box_run}" -maxdepth 1 -type f \( -name "*.log" -o -name "*.old.log" \) -mtime +1 -exec rm -f {} +
+  ) &
+}
+
+box_bin_alive() {
+  local PID=$(<"${box_pid}" 2>/dev/null)
+  if ! kill -0 "$PID" >/dev/null 2>&1; then
+    log Error "${bin_name} 服务未运行。$(<"${box_run}/${bin_name}.log")"
+    log Error "清理无效 pid $PID"
+    busybox pkill -15 "${bin_name}" >/dev/null 2>&1 || true
+    "${scripts_dir}/box.iptables" disable >/dev/null 2>&1
+    [ -f "${box_pid}" ] && rm -f "${box_pid}"
+    exit 1
+  else
+    return 0
+  fi
+}
+
+box_run_crontab() {
+  pkill -f "busybox crond" >/dev/null 2>&1
+  busybox crontab -c "${box_run_state}" -r
+  echo "# root 的定时任务" > "${box_run_state}/root"
+
+  if [ "${run_crontab}" = "true" ]; then
+    log Debug "crond 已启用"
+    if [ "$update_subscription" = "true" ] || [ "$update_geo" = "true" ]; then
+      log Debug "定时任务间隔: ${interva_update}."
+      echo "${interva_update} ${scripts_dir}/box.tool geosub" >> "${box_run_state}/root"
+      log Info "${bin_name} geox 更新: ${update_geo}."
+      if [ "${bin_name}" = "mihomo" ]; then
+        log Info "${bin_name} 订阅更新: ${update_subscription}."
+      fi
+    fi
+    cat "${box_dir}/crontab.cfg" >> "${box_run_state}/root"
+    chmod 0644 "${box_run_state}/root"
+    nohup busybox crond -c "${box_run_state}" >/dev/null 2>&1 &
+  else
+    log Info "crond 已禁用"
+  fi
+}
+
+box_permission_stamp_path() {
+  printf '%s/permission.%s.stamp\n' "${box_run_state}" "${bin_name}"
+}
+
+box_permission_stamp_value() {
+  local bin_stat core_dir_stat yq_stat curl_stat
+
+  bin_stat="$(busybox stat -c '%u:%g:%a:%s:%Y' "${bin_path}" 2>/dev/null)"
+  core_dir_stat="$(busybox stat -c '%u:%g:%a:%Y' "${box_dir}/${bin_name}" 2>/dev/null)"
+  yq_stat="$(busybox stat -c '%u:%g:%a:%s:%Y' "${box_dir}/bin/yq" 2>/dev/null)"
+  curl_stat="$(busybox stat -c '%u:%g:%a:%s:%Y' "${box_dir}/bin/curl" 2>/dev/null)"
+
+  printf '%s|%s|%s|%s|%s|%s\n' "${box_user_group}" "${bin_path}" "${bin_stat}" "${core_dir_stat}" "${yq_stat}" "${curl_stat}"
+}
+
+box_permission_stamp_valid() {
+  local stamp_file current_stamp old_stamp
+
+  stamp_file="$(box_permission_stamp_path)"
+  [ -f "${stamp_file}" ] || return 1
+
+  current_stamp="$(box_permission_stamp_value)"
+  old_stamp="$(cat "${stamp_file}" 2>/dev/null)"
+  [ -n "${current_stamp}" ] && [ "${current_stamp}" = "${old_stamp}" ]
+}
+
+box_permission_stamp_save() {
+  mkdir -p "${box_run_state}" >/dev/null 2>&1 || true
+  box_permission_stamp_value > "$(box_permission_stamp_path)" 2>/dev/null
+}
+
+box_ownership() {
+  # 设置内核目录权限和属主
+  chown -R "${box_user_group}" "${box_dir}"
+  chmod -R 644 "${box_dir}/${bin_name}"
+
+  chown "${box_user_group}" "${bin_path}"
+  chmod 6755 "${bin_path}"
+
+  chmod 0700 "${box_dir}/bin/yq"
+  chmod 0700 "${box_dir}/bin/curl"
+}
+
+box_permission() {
+  if [[ "${box_user_group}" == @(root:net_admin|0:3005) && -f "${bin_path}" ]]; then
+    # 设置内核目录权限和属主
+    if box_permission_stamp_valid; then
+      log Debug "权限未变化，跳过递归权限修正"
+    else
+      box_ownership
+      box_permission_stamp_save || true
+    fi
+    log Info "使用内核 ${bin_path}。"
+  else
+    if  [[ "${box_user_group}" != @(root:net_admin|0:3005) ]]; then
+      log Error "不支持的用户组 [ \"${box_user_group}\" ]"
+      sed -i "s/box_user_group=.*/box_user_group=\"root:net_admin\"/g" "${settings}"
+      log Debug "已自动切换为 [ root:net_admin ]，请重启 box"
+      exit 1
+    fi
+    log Error "未检测到内核 [ \"${bin_name}\" ]。"
+    log Error "请下载 [ \"${bin_name}\" ] 内核并放置到 \"${bin_dir}/\" 目录下。"
+    log Debug "可在终端执行 'su -c \"${scripts_dir}/box.tool upkernel\"' 下载内核"
+    set_description error "内核不存在"
+    exit 1
+  fi
+}
+
+box_check_bin() {
+  if [ ! -x "${bin_path}" ]; then
+    log Error "${bin_path} 不可执行。"
+    set_description error "内核不可执行"
+    exit 1
+  fi
+
+  local version_output
+  case "${bin_name}" in
+    mihomo)
+      version_output=$("${bin_path}" -v 2>/dev/null) || {
+        log Error "${bin_name} 版本信息获取失败。"
+        set_description error "内核损坏"
+        exit 1
+        }
+      ;;
+    *)
+      version_output=$("${bin_path}" version 2>/dev/null) || {
+        log Error "${bin_name} 版本信息获取失败。"
+        set_description error "内核损坏"
+        exit 1
+        }
+      ;;
+  esac
+
+  log Info "${version_output}"
+}
+
+tun_requires_manual_routing() {
+  [[ "${network_mode}" == @(mixed|tun) ]] && [ "${bypass_cn_ip}" = "true" ]
+}
+
+tun_should_force_gvisor() {
+  [[ "${network_mode}" == @(mixed|tun) ]] && [ "${bypass_cn_ip}" = "true" ]
+}
+
+tun_should_manage_core_config() {
+  [[ "${network_mode}" == @(mixed|tun) ]] && [ "${bypass_cn_ip}" = "true" ]
+}
+
+tun_auto_flag_value() {
+  if tun_requires_manual_routing; then
+    printf 'false\n'
+  else
+    printf 'true\n'
+  fi
+}
+
+tun_effective_stack() {
+  if tun_should_force_gvisor; then
+    printf 'gvisor\n'
+  elif [ -n "${stack}" ]; then
+    printf '%s\n' "${stack}"
+  else
+    printf 'mixed\n'
+  fi
+}
+
+force_network_mode() {
+  local target_mode="$1"
+  local reason="$2"
+
+  [ -n "${target_mode}" ] || return 1
+  [ "${network_mode}" = "${target_mode}" ] && return 0
+
+  [ -n "${reason}" ] && log Warning "${reason}"
+  sed -i 's/\(network_mode=\)"[^"]*"/\1"'"${target_mode}"'"/g' "${settings}"
+  network_mode="${target_mode}"
+}
+
+sing_config_is_jsonc() {
+  local yq_bin="$1"
+  ! "${yq_bin}" eval '.' "${sing_config}" >/dev/null 2>&1
+}
+
+prepare_jsonc_for_yq() {
+  local input_file="$1"
+  local stripped_file="$2"
+  local comments_file="$3"
+
+  : > "${stripped_file}"
+  : > "${comments_file}"
+
+  busybox awk -v stripped="${stripped_file}" -v comments="${comments_file}" '
+    function add_comment(text) {
+      if (text == "") {
+        return
+      }
+      pending = pending text "\n"
+    }
+    function leading_ws(text, matched) {
+      if (match(text, /^[[:space:]]*/)) {
+        matched = substr(text, RSTART, RLENGTH)
+        return matched
+      }
+      return ""
+    }
+    function flush_pending(out, trimmed, indent) {
+      if (pending == "") {
+        return
+      }
+
+      comment_id++
+      print "__BOX_COMMENT_BLOCK__" >> comments
+      print comment_id >> comments
+      printf "%s", pending >> comments
+      print "__BOX_COMMENT_END__" >> comments
+
+      indent = leading_ws(out)
+      trimmed = out
+      gsub(/^[[:space:]]+/, "", trimmed)
+
+      if (trimmed ~ /^"[^"]+"[[:space:]]*:/) {
+        print indent "\"__box_comment_" comment_id "__\": \"__BOX_PLACEHOLDER__\"," >> stripped
+      } else {
+        print indent "\"__box_comment_" comment_id "__\"," >> stripped
+      }
+
+      pending = ""
+    }
+    BEGIN {
+      pending = ""
+      block_comment = 0
+      block_text = ""
+      comment_id = 0
+    }
+    {
+      line = $0
+      out = ""
+      in_string = 0
+      escape = 0
+      i = 1
+
+      while (i <= length(line)) {
+        c = substr(line, i, 1)
+        n = (i < length(line) ? substr(line, i + 1, 1) : "")
+
+        if (block_comment) {
+          if (c == "*" && n == "/") {
+            block_text = block_text "*/"
+            add_comment(block_text)
+            block_text = ""
+            block_comment = 0
+            i += 2
+          } else {
+            block_text = block_text c
+            i++
+          }
+          continue
+        }
+
+        if (in_string) {
+          out = out c
+          if (escape) {
+            escape = 0
+          } else if (c == "\\") {
+            escape = 1
+          } else if (c == "\"") {
+            in_string = 0
+          }
+          i++
+          continue
+        }
+
+        if (c == "\"") {
+          in_string = 1
+          out = out c
+          i++
+          continue
+        }
+
+        if (c == "/" && n == "/") {
+          add_comment(substr(line, i))
+          break
+        }
+
+        if (c == "/" && n == "*") {
+          block_comment = 1
+          block_text = "/*"
+          i += 2
+          continue
+        }
+
+        out = out c
+        i++
+      }
+
+      if (out ~ /[^[:space:]]/) {
+        flush_pending(out)
+      }
+
+      print out >> stripped
+
+      if (block_comment) {
+        block_text = block_text "\n"
+      }
+    }
+    END {
+      if (block_text != "") {
+        add_comment(block_text)
+      }
+
+      if (pending != "") {
+        print "__BOX_COMMENT_BLOCK__" >> comments
+        print "EOF" >> comments
+        printf "%s", pending >> comments
+        print "__BOX_COMMENT_END__" >> comments
+      }
+    }
+  ' "${input_file}"
+}
+
+restore_json_comments_file() {
+  local input_file="$1"
+  local comments_file="$2"
+  local tmp_file="${box_run_state}/.$(basename "${input_file}").restore"
+
+  [ -s "${comments_file}" ] || return 0
+
+  busybox awk -v comments="${comments_file}" '
+    BEGIN {
+      eof_block = ""
+      while ((getline line < comments) > 0) {
+        if (line != "__BOX_COMMENT_BLOCK__") {
+          continue
+        }
+
+        if ((getline comment_id < comments) <= 0) {
+          break
+        }
+
+        block = ""
+        while ((getline body < comments) > 0 && body != "__BOX_COMMENT_END__") {
+          block = block body "\n"
+        }
+
+        if (comment_id == "EOF") {
+          eof_block = block
+        } else {
+          blocks[comment_id] = block
+        }
+      }
+      close(comments)
+    }
+    {
+      if (match($0, /^[[:space:]]*"__box_comment_([0-9]+)__"[[:space:]]*:[[:space:]]*"__BOX_PLACEHOLDER__"[[:space:]]*,?[[:space:]]*$/)) {
+        line = substr($0, RSTART, RLENGTH)
+        sub(/^[[:space:]]*"__box_comment_/, "", line)
+        sub(/__.*/, "", line)
+        if (line in blocks) {
+          printf "%s", blocks[line]
+          next
+        }
+      }
+
+      if (match($0, /^[[:space:]]*"__box_comment_([0-9]+)__"[[:space:]]*,?[[:space:]]*$/)) {
+        line = substr($0, RSTART, RLENGTH)
+        sub(/^[[:space:]]*"__box_comment_/, "", line)
+        sub(/__.*/, "", line)
+        if (line in blocks) {
+          printf "%s", blocks[line]
+          next
+        }
+      }
+
+      print $0
+    }
+    END {
+      if (eof_block != "") {
+        printf "%s", eof_block
+      }
+    }
+  ' "${input_file}" > "${tmp_file}" && mv "${tmp_file}" "${input_file}"
+}
+
+sing_cleanup_work_config() {
+  [ -n "${stripped_sing_config}" ] && rm -f "${stripped_sing_config}"
+  [ -n "${sing_comments_file}" ] && rm -f "${sing_comments_file}"
+}
+
+sing_prepare_work_config() {
+  local yq_bin="$1"
+
+  sing_is_jsonc="false"
+  sing_work_config="${sing_config}"
+  stripped_sing_config=""
+  sing_comments_file=""
+
+  if sing_config_is_jsonc "${yq_bin}"; then
+    sing_is_jsonc="true"
+    stripped_sing_config="$(dirname "${sing_config}")/.$(basename "${sing_config}").work.json"
+    sing_comments_file="${box_run_state}/.$(basename "${sing_config}").comments"
+    sing_work_config="${stripped_sing_config}"
+
+    log Info "检测到 ${sing_config} 使用 JSONC 注释，提取纯 JSON 交给 yq 处理"
+    sing_cleanup_work_config
+    if ! prepare_jsonc_for_yq "${sing_config}" "${stripped_sing_config}" "${sing_comments_file}"; then
+      log Error "预处理 ${sing_config} 失败，无法提取 JSONC 注释"
+      set_description error "配置预处理失败"
+      exit 1
+    fi
+  fi
+}
+
+sing_set_route_auto_detect() {
+  local yq_bin="$1"
+  local enabled="$2"
+
+  if [ "${enabled}" = "true" ]; then
+    ${yq_bin} '.route.auto_detect_interface = true' -i --output-format=json "${sing_work_config}"
+  else
+    ${yq_bin} '.route.auto_detect_interface = false' -i --output-format=json "${sing_work_config}"
+  fi
+}
+
+sing_has_inbound() {
+  local inbound_type="$1"
+  busybox grep -q "\"type\": \"${inbound_type}\"" "${sing_work_config}"
+}
+
+sing_ensure_inbound() {
+  local yq_bin="$1"
+  local inbound_type="$2"
+  local inbound_payload="$3"
+  local inbound_label="$4"
+
+  if ! sing_has_inbound "${inbound_type}"; then
+    "${yq_bin}" ".inbounds += [${inbound_payload}]" -i --output-format=json "${sing_work_config}"
+    log Debug "已为 ${sing_config} 添加 [${inbound_label}] 配置"
+  fi
+}
+
+sing_delete_inbound() {
+  local yq_bin="$1"
+  local inbound_type="$2"
+
+  "${yq_bin}" "del(.inbounds[] | select(.type == \"${inbound_type}\"))" -i --output-format=json "${sing_work_config}"
+}
+
+sing_sync_inbound_port() {
+  local yq_bin="$1"
+  local inbound_type="$2"
+  local listen_port="$3"
+
+  if sing_has_inbound "${inbound_type}"; then
+    "${yq_bin}" "(.inbounds[] | select(.type == \"${inbound_type}\") | .listen_port) = ${listen_port}" -i --output-format=json "${sing_work_config}"
+  fi
+}
+
+sing_set_tun_flags() {
+  local yq_bin="$1"
+  local auto_route="$2"
+  local strict_route="$3"
+  local auto_redirect="$4"
+
+  if [ "${auto_route}" = "true" ]; then
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .auto_route) |= true' -i --output-format=json "${sing_work_config}"
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .strict_route) |= true' -i --output-format=json "${sing_work_config}"
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .auto_redirect) |= true' -i --output-format=json "${sing_work_config}"
+  else
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .auto_route) |= false' -i --output-format=json "${sing_work_config}"
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .strict_route) |= false' -i --output-format=json "${sing_work_config}"
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .auto_redirect) |= false' -i --output-format=json "${sing_work_config}"
+  fi
+}
+
+sing_set_tun_auto_route() {
+  local yq_bin="$1"
+  local auto_route="$2"
+
+  if [ "${auto_route}" = "true" ]; then
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .auto_route) |= true' -i --output-format=json "${sing_work_config}"
+  else
+    ${yq_bin} '(.inbounds[] | select(.type == "tun") | .auto_route) |= false' -i --output-format=json "${sing_work_config}"
+  fi
+}
+
+sing_set_tun_stack() {
+  local yq_bin="$1"
+  local tun_stack="$2"
+
+  ${yq_bin} "(.inbounds[] | select(.type == \"tun\") | .stack) = \"${tun_stack}\"" -i --output-format=json "${sing_work_config}"
+}
+
+sing_reset_tun_uid_filters() {
+  local yq_bin="$1"
+  local yq_filter='(.inbounds[] | select(.type == "tun") | .include_uid) = [] |
+                   (.inbounds[] | select(.type == "tun") | .exclude_uid) = []'
+  "${yq_bin}" eval "${yq_filter}" -i --output-format=json "${sing_work_config}" > /dev/null 2>&1
+}
+
+sing_apply_tun_uid_filters() {
+  local yq_bin="$1"
+  local mode="$2"
+  local uids_to_add="$3"
+  local yq_filter='(.inbounds[] | select(.type == "tun") | .include_uid) = [] |
+                   (.inbounds[] | select(.type == "tun") | .exclude_uid) = []'
+
+  if [ -n "${uids_to_add}" ]; then
+    yq_filter="${yq_filter} | (.inbounds[] | select(.type == \"tun\") | .${mode}_uid) = [${uids_to_add}]"
+  fi
+
+  "${yq_bin}" eval "${yq_filter}" -i --output-format=json "${sing_work_config}" > /dev/null 2>&1
+}
+
+ebpf_uid_filter_mode() {
+  case "${proxy_mode}" in
+    whitelist|white)
+      printf '%s\n' "include"
+      ;;
+    blacklist|black)
+      printf '%s\n' "exclude"
+      ;;
+  esac
+}
+
+ebpf_uid_values() {
+  [ -s "${uid_list}" ] || return 0
+  busybox tr '\n' ',' < "${uid_list}" | sed 's/,$//'
+}
+
+sing_prepare_ebpf_inbound() {
+  local yq_bin="$1"
+  local uid_mode uid_values
+
+  if [ "${proxy_tcp}" != "true" ] && [ "${proxy_udp}" != "true" ]; then
+    log Error "eBPF 运行模式至少需要启用 TCP 或 UDP 代理"
+    set_description error "eBPF 需要启用 TCP 或 UDP 代理"
+    sing_cleanup_work_config
+    exit 1
+  fi
+
+  "${yq_bin}" '.inbounds //= [] | if ([.inbounds[] | select(.type == "ebpf")] | length) == 0 then .inbounds += [{"type": "ebpf", "tag": "ebpf-in"}] else . end' -i --output-format=json "${sing_work_config}"
+  "${yq_bin}" '(.inbounds[] | select(.type == "ebpf")) |= (.tag = "ebpf-in" | del(.mode) | .local = (if (.local | type) == "!!map" then .local else {} end) | del(.local.include_uid, .local.exclude_uid))' -i --output-format=json "${sing_work_config}"
+
+  if [ "${ipv6}" != "true" ]; then
+    "${yq_bin}" '(.inbounds[] | select(.type == "ebpf")) |= (.local = (if (.local | type) == "!!map" then .local else {} end) | .local.ipv6_mode = "off")' -i --output-format=json "${sing_work_config}"
+  fi
+
+  if [ "${proxy_tcp}" = "true" ] && [ "${proxy_udp}" = "true" ]; then
+    "${yq_bin}" 'del(.inbounds[] | select(.type == "ebpf") | .network)' -i --output-format=json "${sing_work_config}"
+  elif [ "${proxy_tcp}" = "true" ]; then
+    "${yq_bin}" '(.inbounds[] | select(.type == "ebpf") | .network) = "tcp"' -i --output-format=json "${sing_work_config}"
+  else
+    "${yq_bin}" '(.inbounds[] | select(.type == "ebpf") | .network) = "udp"' -i --output-format=json "${sing_work_config}"
+  fi
+
+  uid_mode="$(ebpf_uid_filter_mode)"
+  uid_values="$(ebpf_uid_values)"
+  if [ -n "${uid_mode}" ] && [ -n "${uid_values}" ]; then
+    "${yq_bin}" "(.inbounds[] | select(.type == \"ebpf\") | .local.${uid_mode}_uid) = [${uid_values}]" -i --output-format=json "${sing_work_config}"
+    log_service_results "sing-box" "${uid_mode}" "${uid_values}"
+  else
+    log_service_results "sing-box" "core" ""
+  fi
+}
+
+sing_validate_and_commit_work_config() {
+  if [ "${sing_is_jsonc}" = "true" ]; then
+    if ! restore_json_comments_file "${sing_work_config}" "${sing_comments_file}"; then
+      log Error "恢复 ${sing_config} 注释失败"
+      set_description error "配置注释恢复失败"
+      sing_cleanup_work_config
+      exit 1
+    fi
+  fi
+
+  if ! ( cd "$(dirname "${sing_work_config}")" && "${bin_path}" check -c "$(basename "${sing_work_config}")" ) > "${box_run}/${bin_name}.log" 2>&1; then
+    log Error "$(<"${box_run}/${bin_name}.log")"
+    log Error "配置失败，请检查 ${box_run}/${bin_name}.log 文件。"
+    set_description error
+    sing_cleanup_work_config
+    exit 1
+  fi
+
+  if [ "${sing_is_jsonc}" = "true" ]; then
+    if ! mv -f "${sing_work_config}" "${sing_config}"; then
+      log Error "写回 ${sing_config} 失败"
+      set_description error "配置写回失败"
+      sing_cleanup_work_config
+      exit 1
+    fi
+    sing_cleanup_work_config
+  fi
+}
+
+prepare_singbox() {
+  # 检查配置文件
+  if ! [ -f "${sing_config}" ]; then
+    log Error "未找到配置文件 ${sing_config}"
+    set_description error "配置文件不存在"
+    exit 1
+  else
+    log Info "检测到配置 ${sing_config}"
+  fi
+
+  # 检查 yq
+  yq="yq"
+  if ! command -v yq >/dev/null 2>&1; then
+    if [ ! -x "${box_dir}/bin/yq" ]; then
+      log Debug "未找到 yq，开始从 GitHub 下载" >&2
+      "${scripts_dir}/box.tool" upyq >/dev/null 2>&1
+    fi
+    yq="${box_dir}/bin/yq"
+  fi
+
+  sing_prepare_work_config "${yq}"
+  if [ "${network_mode}" = "ebpf" ]; then
+    sing_prepare_ebpf_inbound "${yq}"
+    sing_validate_and_commit_work_config
+    return 0
+  fi
+
+  # 当 TUN + CNIP 由 box.iptables 接管策略路由时，这里只保留 TUN 入站，不再让内核自动写路由。
+  local tun_auto_route
+  local tun_strict_route
+  local tun_auto_redirect
+  local tun_auto_detect_interface
+  local tun_stack
+  tun_auto_route="$(tun_auto_flag_value)"
+  tun_strict_route="$(tun_auto_flag_value)"
+  tun_auto_redirect="$(tun_auto_flag_value)"
+  tun_auto_detect_interface="$(tun_auto_flag_value)"
+  tun_stack="$(tun_effective_stack)"
+  stack="${tun_stack}"
+  if tun_should_force_gvisor; then
+    log Info "检测到 TUN + 大陆IP分流，已将 sing-box 协议栈调整为 gvisor。"
+  fi
+
+  sing_delete_inbound "${yq}" "ebpf"
+  if tun_should_manage_core_config; then
+    sing_set_route_auto_detect "${yq}" "${tun_auto_detect_interface}"
+    sing_set_tun_flags "${yq}" "${tun_auto_route}" "${tun_strict_route}" "${tun_auto_redirect}"
+  else
+    sing_set_route_auto_detect "${yq}" "true"
+    sing_set_tun_auto_route "${yq}" "true"
+  fi
+  
+  # 确保日志路径是绝对路径
+  ${yq} '.log.output = "'"${box_run}/${bin_name}.log"'"' -i --output-format=json "${sing_work_config}" 2>/dev/null || true
+
+  # 根据 network_mode 设置 auto_route
+  if [[ "${network_mode}" == @(mixed|tun) ]]; then
+    local tun_inbound_payload
+    tun_inbound_payload=$(cat <<EOF
+{
+  "type": "tun",
+  "tag": "tun-in",
+  "interface_name": "sing",
+  "address": ["172.18.0.1/30","fdfe:dcba:9876::1/126"],
+  "mtu": 9000,
+  "stack": "${tun_stack}",
+  "auto_route": ${tun_auto_route},
+  "strict_route": ${tun_strict_route},
+  "auto_redirect": ${tun_auto_redirect},
+  "include_uid": [],
+  "exclude_uid": []
+}
+EOF
+)
+    sing_ensure_inbound "${yq}" "tun" "${tun_inbound_payload}" "Tun"
+
+    if tun_should_manage_core_config; then
+      sing_set_tun_flags "${yq}" "${tun_auto_route}" "${tun_strict_route}" "${tun_auto_redirect}"
+      sing_set_tun_stack "${yq}" "${tun_stack}"
+    else
+      sing_set_tun_auto_route "${yq}" "true"
+      log Info "TUN 未启用大陆 IP 分流，保留 sing-box 现有 TUN 路由与协议栈配置。"
+    fi
+  else
+    sing_ensure_inbound "${yq}" "tproxy" '{"type": "tproxy", "tag": "tproxy-in", "listen": "::", "listen_port": '"${tproxy_port}"'}' "Tproxy"
+    sing_delete_inbound "${yq}" "tun"
+    sing_sync_inbound_port "${yq}" "tproxy" "${tproxy_port}"
+  fi
+
+  if [[ "${network_mode}" == @(mixed|tun) ]]; then
+    if [ "${proxy_mode}" = "core" ]; then
+      sing_reset_tun_uid_filters "${yq}"
+      log_service_results "sing-box" "core" ""
+    else
+      [[ ${proxy_mode} = "blacklist" || ${proxy_mode} = "black" ]] && mode="exclude" || mode="include"
+      
+      local uids_to_add=""
+      if [ -s "${uid_list}" ]; then
+        uids_to_add=$(busybox tr '\n' ',' < "${uid_list}" | sed 's/,$//')
+      fi
+      sing_apply_tun_uid_filters "${yq}" "${mode}" "${uids_to_add}"
+      log_service_results "sing-box" "$mode" "$uids_to_add"
+    fi
+  fi
+
+  if [[ "${network_mode}" == @(mixed|enhance|redirect) ]]; then
+    sing_ensure_inbound "${yq}" "redirect" '{
+        "type": "redirect",
+        "tag": "redirect-in",
+        "listen": "::",
+        "listen_port": '"${redir_port}"'
+      }' "Redirect"
+    sing_sync_inbound_port "${yq}" "redirect" "${redir_port}"
+  else
+    sing_delete_inbound "${yq}" "redirect"
+  fi
+
+  sing_validate_and_commit_work_config
+}
+
+mihomo_yq_binary() {
+  local yq_bin="yq"
+
+  if ! command -v "${yq_bin}" >/dev/null 2>&1; then
+    if [ ! -x "${box_dir}/bin/yq" ]; then
+      log Debug "未找到 yq，开始从 GitHub 下载" >&2
+      "${scripts_dir}/box.tool" upyq >/dev/null 2>&1
+    fi
+    yq_bin="${box_dir}/bin/yq"
+  fi
+
+  if [ ! -x "${yq_bin}" ] && ! command -v "${yq_bin}" >/dev/null 2>&1; then
+    log Error "未找到 yq，无法覆写 Mihomo eBPF 配置" >&2
+    set_description error "未找到 yq" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${yq_bin}"
+}
+
+mihomo_prepare_ebpf_listener() {
+  local yq_bin="$1"
+  local uid_mode uid_values
+
+  if [ "${proxy_tcp}" != "true" ] && [ "${proxy_udp}" != "true" ]; then
+    log Error "eBPF 运行模式至少需要启用 TCP 或 UDP 代理"
+    set_description error "eBPF 需要启用 TCP 或 UDP 代理"
+    exit 1
+  fi
+
+  "${yq_bin}" '.listeners //= [] | if ([.listeners[] | select(.type == "ebpf")] | length) == 0 then .listeners += [{"name": "ebpf-in", "type": "ebpf"}] else . end' -i "${mihomo_config}"
+  "${yq_bin}" '(.listeners[] | select(.type == "ebpf")) |= (.name = "ebpf-in" | del(.mode) | .local = (if (.local | type) == "!!map" then .local else {} end) | del(.local."include-uid", .local."exclude-uid"))' -i "${mihomo_config}"
+
+  if [ "${ipv6}" != "true" ]; then
+    "${yq_bin}" '(.listeners[] | select(.type == "ebpf") | .local."ipv6-mode") = "off"' -i "${mihomo_config}"
+  fi
+
+  if [ "${proxy_tcp}" = "true" ] && [ "${proxy_udp}" = "true" ]; then
+    "${yq_bin}" 'del(.listeners[] | select(.type == "ebpf") | .network)' -i "${mihomo_config}"
+  elif [ "${proxy_tcp}" = "true" ]; then
+    "${yq_bin}" '(.listeners[] | select(.type == "ebpf") | .network) = ["tcp"]' -i "${mihomo_config}"
+  else
+    "${yq_bin}" '(.listeners[] | select(.type == "ebpf") | .network) = ["udp"]' -i "${mihomo_config}"
+  fi
+
+  uid_mode="$(ebpf_uid_filter_mode)"
+  uid_values="$(ebpf_uid_values)"
+  if [ -n "${uid_mode}" ] && [ -n "${uid_values}" ]; then
+    "${yq_bin}" "(.listeners[] | select(.type == \"ebpf\") | .local.\"${uid_mode}-uid\") = [${uid_values}]" -i "${mihomo_config}"
+    log_service_results "mihomo" "${uid_mode}" "${uid_values}"
+  else
+    log_service_results "mihomo" "core" ""
+  fi
+}
+
+mihomo_remove_ebpf_listener() {
+  local yq_bin="$1"
+
+  "${yq_bin}" 'if (.listeners | type) == "!!seq" then .listeners |= map(select(.name != "ebpf-in")) else . end' -i "${mihomo_config}"
+}
+
+prepare_mihomo() {
+  # 检查配置文件
+  if ! [ -f "${mihomo_config}" ]; then
+    log Error "未找到配置文件 ${mihomo_config}"
+    set_description error "配置文件不存在"
+    exit 1
+  else
+    log Info "检测到配置 ${mihomo_config}"
+  fi
+
+  # 写入 external_controller，如未配置
+  if [ "${network_mode}" = "ebpf" ]; then
+    local yq_bin
+    yq_bin="$(mihomo_yq_binary)"
+    mihomo_prepare_ebpf_listener "${yq_bin}"
+    return 0
+  fi
+
+  if busybox grep -qE '^[[:space:]]*name:[[:space:]]*ebpf-in([[:space:]]*(#.*)?)?$' "${mihomo_config}"; then
+    local yq_bin
+    yq_bin="$(mihomo_yq_binary)"
+    mihomo_remove_ebpf_listener "${yq_bin}"
+  fi
+
+  mihomo_external_controller=$(busybox awk '!/^ *#/ && /external-controller: /{print $1}' "${mihomo_config}")
+  if [ -z "${mihomo_external_controller}" ]; then
+    printf "\nexternal-controller: 0.0.0.0:9090" >> "${mihomo_config}"
+  fi
+
+  # 写入 external_ui，如未配置
+  mihomo_external_ui=$(busybox awk '!/^ *#/ && /external-ui: /{print $1}' "${mihomo_config}")
+  if [ -z "${mihomo_external_ui}" ]; then
+    printf "\nexternal-ui: ./dashboard" >> "${mihomo_config}"
+  fi
+
+  # 写入 tproxy-port，如未配置
+  mihomo_tproxy_port=$(busybox awk '!/^ *#/ && /tproxy-port: /{print $1}' "${mihomo_config}")
+  if [ -z "${mihomo_tproxy_port}" ]; then
+    printf "\ntproxy-port: ${tproxy_port}" >> "${mihomo_config}"
+  fi
+
+  # 写入 redir-port，如未配置
+  mihomo_redir_port=$(busybox awk '!/^ *#/ && /redir-port: /{print $1}' "${mihomo_config}")
+  if [ -z "${mihomo_redir_port}" ]; then
+    printf "\nredir-port: ${redir_port}" >> "${mihomo_config}"
+  fi
+
+  if [[ "${network_mode}" == @(mixed|tun) ]]; then
+    # 当 TUN + CNIP 由 box.iptables 接管策略路由时，这里只同步 tun 开关，不再让 Mihomo 自动写路由。
+    local mihomo_tun_auto_route
+    local mihomo_tun_strict_route
+    local mihomo_tun_auto_redirect
+    local mihomo_tun_auto_detect_interface
+    local mihomo_tun_stack
+    mihomo_tun_auto_route="$(tun_auto_flag_value)"
+    mihomo_tun_strict_route="$(tun_auto_flag_value)"
+    mihomo_tun_auto_redirect="$(tun_auto_flag_value)"
+    mihomo_tun_auto_detect_interface="$(tun_auto_flag_value)"
+    mihomo_tun_stack="$(tun_effective_stack)"
+    stack="${mihomo_tun_stack}"
+    if tun_should_force_gvisor; then
+      log Info "检测到 TUN + 大陆IP分流，已将 mihomo 协议栈调整为 gvisor。"
+    fi
+    mihomo_tun_status=$(busybox awk '!/^ *#/ && /tun:/ { getline; split($0, arr, ": "); print arr[2]; found=1; exit } END{ if (!found) print "" }' "${mihomo_config}" 2>/dev/null)
+    # 写入 TUN 配置，如未配置
+    if [ -z "${mihomo_tun_status}" ]; then
+      printf '%s\n' '' 'tun:' \
+        '  enable: true' \
+        '  mtu: 9000' \
+        '  device: meta' \
+        "  stack: ${mihomo_tun_stack} # / gvisor / system" \
+        '  dns-hijack:' \
+        '    - any:53' \
+        '    - tcp://any:53' \
+        "  auto-route: ${mihomo_tun_auto_route}" \
+        "  strict-route: ${mihomo_tun_strict_route}" \
+        "  auto-redirect: ${mihomo_tun_auto_redirect}" \
+        "  auto-detect-interface: ${mihomo_tun_auto_detect_interface}" \
+        '  include-android-user: [0, 10]' \
+        '  exclude-uid: []' \
+        '  include-uid: []' \ >> "${mihomo_config}"
+      log Debug "已为 ${mihomo_config} 添加 [tun] 配置"
+    else
+      log Info  "${mihomo_config} 已存在 [tun] 配置"
+    fi
+    # core 模式：跳过 UID 处理
+    if tun_should_manage_core_config; then
+      sed_file_if_changed "${mihomo_config}" -e "/^tun:/,/^[^ ]/ { s/^[[:space:]]*stack:.*/  stack: ${mihomo_tun_stack}/; s/^[[:space:]]*auto-route:.*/  auto-route: ${mihomo_tun_auto_route}/; s/^[[:space:]]*strict-route:.*/  strict-route: ${mihomo_tun_strict_route}/; s/^[[:space:]]*auto-redirect:.*/  auto-redirect: ${mihomo_tun_auto_redirect}/; s/^[[:space:]]*auto-detect-interface:.*/  auto-detect-interface: ${mihomo_tun_auto_detect_interface}/; }"
+    else
+      sed_file_if_changed "${mihomo_config}" -e "/^tun:/,/^[^ ]/ { s/^[[:space:]]*auto-route:.*/  auto-route: true/; s/^[[:space:]]*auto-detect-interface:.*/  auto-detect-interface: true/; }"
+      log Info "TUN 未启用大陆 IP 分流，保留 Mihomo 现有 TUN 路由与协议栈配置。"
+    fi
+
+    if [ "${proxy_mode}" = "core" ]; then
+      sed_file_if_changed "${mihomo_config}" -e "s/exclude-uid:.*/exclude-uid: []/g" \
+          -e "s/include-uid:.*/include-uid: []/g" \
+          -e "/tun:/,/enable:/ { /enable: false/ s/enable: false/enable: true/ }"
+      log_service_results "mihomo" "core" ""
+    else
+      # 为 tun 添加 include-uid/exclude-uid
+      if [ -f "${uid_list}" ]; then
+          list_uid=$(busybox tr '\n' ',' < "${uid_list}" | sed 's/,$//')
+      else
+          list_uid=""
+      fi
+
+      if [[ "${proxy_mode}" = "whitelist" || "${proxy_mode}" = "white" ]]; then
+        mode="include"
+      elif [[ "${proxy_mode}" = "blacklist" || "${proxy_mode}" = "black" ]]; then
+        mode="exclude"
+      fi
+
+      # 重置 include/exclude_uid 列表并启用 tun
+      sed_file_if_changed "${mihomo_config}" -e "s/exclude-uid:.*/exclude-uid: []/g" \
+          -e "s/include-uid:.*/include-uid: []/g" \
+          -e "/tun:/,/enable:/ { /enable: false/ s/enable: false/enable: true/ }"
+
+
+      # 检查 tun 块中是否有 include-uid/exclude-uid
+      uid_found=$(busybox awk '/^tun:/{f=1} f && /'"$mode-uid:"'/{print $0; exit}' "$mihomo_config")
+      if [ -z "$uid_found" ]; then
+          sed_file_if_changed "${mihomo_config}" "/^tun:/a \  $mode-uid: []"
+      fi
+
+      # 添加uid到配置
+      if [ -n "${list_uid}" ]; then
+        sed_file_if_changed "${mihomo_config}" "s/${mode}-uid:.*/${mode}-uid: [${list_uid}]/g"
+      fi
+      log_service_results "mihomo" "$mode" "$list_uid"
+    fi
+
+  else
+    sed_file_if_changed "${mihomo_config}" "/tun:/,/enable:/ { /enable: true/ s/enable: true/enable: false/ }"
+  fi
+
+  # 同步 tproxy/redir 端口
+  sed_file_if_changed "${mihomo_config}" -E "s/(tproxy-port: )[0-9]+/\1${tproxy_port}/"
+  sed_file_if_changed "${mihomo_config}" -E "s/(redir-port: )[0-9]+/\1${redir_port}/"
+
+  mihomo_enhanced_mode=$(busybox awk '!/^ *#/ && /enhanced-mode: / { print $2 }' "${mihomo_config}" 2>/dev/null)
+  if [ -z "${mihomo_enhanced_mode}" ]; then
+    # 添加 enhanced-mode: fake-ip
+    sed_file_if_changed "${mihomo_config}" "/^dns:/a \  enhanced-mode: fake-ip"
+    log Debug "已添加 enhanced-mode: fake-ip"
+  fi
+
+  if [[ "${network_mode}" == @(mixed|tproxy|redirect|enhance) ]]; then
+    if [[ "${proxy_mode}" != "core" ]] && [[ -n "${packages_list[*]}" || -n "${ignore_ap_list[*]}" || -n "${gid_list[*]}" ]] && [ "${mihomo_enhanced_mode}" = "fake-ip" ]; then
+      log Warning "${proxy_mode} 仅在 mihomo 的 enhanced-mode: redir-host 下生效"
+      log Warning "已将 fake-ip 替换为 redir-host"
+      sed_file_if_changed "${mihomo_config}" "s/enhanced-mode:.*/enhanced-mode: redir-host/g"
+      sed_file_if_changed "${mihomo_config}" "/sniffer:/,/enable:/ { /enable: false/ s/enable: false/enable: true/ }"
+    fi
+  fi
+}
+
+taskset_binary() {
+  for path in /system/bin/taskset /vendor/bin/taskset /system/xbin/taskset /bin/taskset /usr/bin/taskset; do
+    [ -x "${path}" ] && { printf '%s\n' "${path}"; return 0; }
+  done
+  command -v taskset 2>/dev/null
+}
+
+taskset_mask() {
+  local cores="${1}"
+  local total_core item start end cpu mask bit any
+  mask=0
+  any=0
+
+  if [ -z "${cores}" ]; then
+    total_core="$(nproc --all 2>/dev/null)"
+    [ -z "${total_core}" ] && total_core="$(busybox nproc --all 2>/dev/null)"
+    if [ -z "${total_core}" ] || [ "${total_core}" -le 0 ]; then
+      return 1
+    fi
+    cores="0-$((total_core - 1))"
+  fi
+
+  for item in $(echo "${cores}" | busybox tr ',' ' '); do
+    item="$(echo "${item}" | busybox tr -d '[:space:]')"
+    [ -z "${item}" ] && continue
+
+    case "${item}" in
+      *-*)
+        start="${item%-*}"
+        end="${item#*-}"
+        ;;
+      *)
+        start="${item}"
+        end="${item}"
+        ;;
+    esac
+
+    case "${start}" in ''|*[!0-9]*) return 1 ;; esac
+    case "${end}" in ''|*[!0-9]*) return 1 ;; esac
+    [ "${start}" -gt "${end}" ] && return 1
+
+    cpu="${start}"
+    while [ "${cpu}" -le "${end}" ]; do
+      [ "${cpu}" -ge 63 ] && return 1
+      bit=$((1 << cpu))
+      mask=$((mask | bit))
+      any=1
+      cpu=$((cpu + 1))
+    done
+  done
+
+  [ "${any}" -eq 1 ] || return 1
+  printf '%x\n' "${mask}"
+}
+
+start_core_bin() {
+  local taskset_bin taskset_mask_arg
+
+  if [ "${taskset_cpu}" = "true" ]; then
+    taskset_bin="$(taskset_binary)"
+    taskset_mask_arg="$(taskset_mask "${allow_cpu}")"
+    if [ -n "${taskset_bin}" ] && [ -n "${taskset_mask_arg}" ]; then
+      log Info "使用 taskset 分配 CPU 核心 [${allow_cpu:-auto}]，mask=${taskset_mask_arg}"
+      nohup "${taskset_bin}" "${taskset_mask_arg}" busybox setuidgid "${box_user_group}" "${bin_path}" "$@" > "${bin_log}" 2>&1 &
+      PID=$!
+      return 0
+    fi
+    log Warning "taskset 启用失败，改为直接启动核心"
+  fi
+
+  nohup busybox setuidgid "${box_user_group}" "${bin_path}" "$@" > "${bin_log}" 2>&1 &
+  PID=$!
+}
+
+box_run_bin() {
+  log Info "启动服务: ${bin_name}"
+  ulimit -SHn 1000000
+
+  # 启动服务前刷新 box.tool 日志
+  : > "${box_run}/tool.log"
+
+  case "${bin_name}" in
+    hysteria)
+      # 同步端口
+      if [ -f "${hysteria_config}" ]; then
+        sed -i -e "/tcpTProxy:/,/listen:/s/listen: :.*/listen: :${tproxy_port}/" "${hysteria_config}"
+        sed -i -e "/udpTProxy:/,/listen:/s/listen: :.*/listen: :${tproxy_port}/" "${hysteria_config}"
+        sed -i -e "/tcpRedirect:/,/listen:/s/listen: :.*/listen: :${redir_port}/" "${hysteria_config}"
+      fi
+
+      # 验证 network_mode for hysteria
+      case "${network_mode}" in
+        redirect|tproxy|enhance)
+          ;;
+        *)
+          force_network_mode "tproxy" "${bin_name} 不支持网络模式: ${network_mode}，已切换到 TPROXY"
+          ;;
+      esac
+      start_core_bin -c "${hysteria_config}"
+      if kill -0 "${PID}" 2>/dev/null; then
+        echo -n "${PID}" > "${box_pid}"
+      else
+        set_description error
+        log Error "$(cat "${box_run}/${bin_name}.log")"
+        log Error "配置失败，请检查 ${box_run}/${bin_name}.log 文件。"
+        exit 1
+      fi
+      ;;
+    sing-box)
+      if [ "${auto_modify_config}" = "true" ]; then
+        prepare_singbox
+      fi
+      if ${bin_path} check -c "${sing_config}" -D "${box_dir}/${bin_name}" > "${box_run}/${bin_name}.log" 2>&1; then
+        start_core_bin run -c "${sing_config}" -D "${box_dir}/${bin_name}"
+        echo -n $PID > "${box_pid}"
+      else
+        set_description error
+        log Error "$(<"${box_run}/${bin_name}.log")"
+        log Error "配置失败，请检查 ${box_run}/${bin_name}.log 文件。"
+        exit 1
+      fi
+      ;;
+    mihomo)
+      if [ "${auto_modify_config}" = "true" ]; then
+        prepare_mihomo
+      fi
+      if ${bin_path} -t -d "${box_dir}/${bin_name}" -f "${mihomo_config}" > "${box_run}/${bin_name}.log" 2>&1; then
+        start_core_bin -d "${box_dir}/${bin_name}" -f "${mihomo_config}"
+        echo -n $PID > "${box_pid}"
+      else
+        set_description error
+        log Error "$(<"${box_run}/${bin_name}.log")"
+        log Error "配置失败，请检查 ${box_run}/${bin_name}.log 文件。"
+        exit 1
+      fi
+      ;;
+    xray)
+      force_network_mode "tproxy" "${bin_name} 仅支持 TPROXY，已自动切换网络模式"
+      if [ ! -f "${xray_config}" ]; then
+        log Error "未找到配置文件：${xray_config}"
+        set_description error "配置文件不存在"
+        exit 1
+      else
+        if [[ "${xray_config}" == *.yaml ]]; then
+          ${box_dir}/bin/yq '(.inbounds[] | select(.protocol == "dokodemo-door") | .port) = '"${tproxy_port}"'' -i --output-format=yaml "${xray_config}" >/dev/null 2>&1
+        elif [[ "${xray_config}" == *.json ]]; then
+          ${box_dir}/bin/yq '(.inbounds[] | select(.protocol == "dokodemo-door") | select(.tag == "tproxy-in") | .port) = '"${tproxy_port}" -i --output-format=json "${xray_config}" >/dev/null 2>&1
+        fi
+        log Info "已定位配置文件：${xray_config}"
+      fi
+      export XRAY_LOCATION_ASSET="${box_dir}/${bin_name}"
+      if ${bin_path} -test -confdir "${box_dir}/${bin_name}" > "${box_run}/${bin_name}.log" 2>&1; then
+        start_core_bin run -confdir "${box_dir}/${bin_name}"
+        echo -n $PID > "${box_pid}"
+      else
+        set_description error
+        log Error "$(<"${box_run}/${bin_name}.log")"
+        log Error "配置失败，请检查 ${box_run}/${bin_name}.log 文件。"
+        exit 1
+      fi
+      ;;
+    v2fly)
+      force_network_mode "tproxy" "${bin_name} 仅支持 TPROXY，已自动切换网络模式"
+      if [ ! -f "${v2fly_config}" ]; then
+        log Error "未找到配置文件：${v2fly_config}"
+        set_description error "配置文件不存在"
+        exit 1
+      else
+        if [[ "${v2fly_config}" == *.yaml ]]; then
+          ${box_dir}/bin/yq '(.inbounds[] | select(.protocol == "dokodemo-door") | .port) = '"${tproxy_port}"'' -i --output-format=yaml "${v2fly_config}" >/dev/null 2>&1
+        elif [[ "${v2fly_config}" == *.json ]]; then
+          ${box_dir}/bin/yq '(.inbounds[] | select(.protocol == "dokodemo-door") | select(.tag == "tproxy-in") | .port) = '"${tproxy_port}" -i --output-format=json "${v2fly_config}" >/dev/null 2>&1
+        fi
+        log Info "已定位配置文件：${v2fly_config}"
+      fi
+      export V2RAY_LOCATION_ASSET="${box_dir}/${bin_name}"
+      if ${bin_path} test -d "${box_dir}/${bin_name}" > "${box_run}/${bin_name}.log" 2>&1; then
+        start_core_bin run -d "${box_dir}/${bin_name}"
+        echo -n $PID > "${box_pid}"
+      else
+        set_description error
+        log Error "$(<"${box_run}/${bin_name}.log")"
+        log Error "配置失败，请检查 ${box_run}/${bin_name}.log 文件。"
+        exit 1
+      fi
+      ;;
+    *)
+      log Error "[ ${bin_name} ] 未知内核。"
+      exit 1
+      ;;
+  esac
+}
+
+box_cgroup() {
+  set_cgroup_config() {
+    local cgroup_attr="$1"
+    local cgroup_value="$2"
+
+    if [ "${cgroup_value}" = "true" ]; then
+      if ${scripts_dir}/box.tool "${cgroup_attr}"; then
+        true
+      else
+        log Warning "无法为 ${bin_name} 启用 ${cgroup_attr}"
+        log Warning "已关闭 cgroups ${cgroup_attr}"
+        sed -i -E "/cgroup_${cgroup_attr}/ s/(true)/false/" "${settings}"
+      fi
+    fi
+  }
+  set_cgroup_config "memcg" "${cgroup_memcg}"
+  set_cgroup_config "blkio" "${cgroup_blkio}"
+}
+
+# 显示进程状态信息
+box_bin_status() {
+  # 获取进程 PID
+  local PID=$(busybox pidof ${bin_name})
+
+  if [ -z "$PID" ]; then
+    log Error "${bin_name} 未在运行"
+    return 1
+  fi
+
+  stack=$(if [ "${bin_name}" != "mihomo" ]; then find "/data/adb/box/sing-box" -type f -name "*.json" -exec busybox awk -F'"' '/"stack"/{print $4}' {} +; else busybox awk '!/^ *#/ && /stack: / { print $2;found=1; exit}' "${mihomo_config}"; fi)
+  TOAST=1 log Info "${bin_name} 服务正在运行"
+
+  log Info "代理模式: ${proxy_mode} + 网络模式: ${network_mode} + $(if [[ "${network_mode}" == @(mixed|tun) ]]; then echo "协议栈: ${stack}"; fi)"
+
+  # 获取内存使用情况
+  rss=$(grep VmRSS /proc/$PID/status | busybox awk '{ print $2 }')
+  [ "${rss}" -ge 1024 ] && bin_rss="$(expr ${rss} / 1024) MB" || bin_rss="${rss} KB"
+  swap=$(grep VmSwap /proc/$PID/status | busybox awk '{ print $2 }')
+  [ "${swap}" -ge 1024 ] && bin_swap="$(expr ${swap} / 1024) MB" || bin_swap="${swap} KB"
+
+  # 获取用户组信息
+  user_group=$(stat -c %U:%G /proc/$PID)
+
+  # 记录信息到日志
+  log Info "${bin_name} (PID: $PID) 用户组: ${user_group}, 内存: ${bin_rss}, 交换: ${bin_swap}"
+
+  # 获取 CPU 使用率
+  cpu=$(ps -p $PID -o %cpu | busybox awk 'NR==2{print $1}' 2>/dev/null)
+
+  cpus_allowed=$(grep Cpus_allowed_list /proc/$PID/status | busybox awk '{ print $2" "$3 }')
+  core=$(busybox awk '{print $39}' /proc/$PID/stat 2>/dev/null)
+
+  log Info "${bin_name} CPU: ${cpu:-无法获取}%, 允许核心: ${cpus_allowed:-无法获取}"
+
+  # 检查电池温度
+  temperature_celsius=$(($(cat /sys/class/power_supply/battery/temp) / 10))
+  log Info "电池温度: ${temperature_celsius}°C"
+
+  # 获取运行时间
+  running_time=$(busybox ps -o comm,etime | grep ${bin_name} | busybox awk '{print $2}')
+  log Info "${bin_name} 运行时间: ${running_time:-无法获取}"
+  
+  (
+    # 本地 IP
+    localIP=($(ip -4 a | awk '/inet / && !/127.0.0.1/ { split($2, a, "/"); print a[1] }'))
+    log Info "本地 IP: ${localIP[*]}"
+    # 本地 DNS
+    localDNS=($(dumpsys connectivity | awk -F'[ ,]' '/DnsAddresses:/ { for (i=1; i<=NF; i++) if ($i ~ /^\/.*$/) { dns=substr($i, 2); if (dns ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) print dns } }'))
+    log Info "本地 DNS: ${localDNS[*]}"
+  ) &
+
+
+  # 保存进程 ID 到 pid 文件
+  if [ -n "$PID" ]; then
+    get_dns_mode
+    set_description running
+    echo -n "$PID" > "${box_pid}"
+  fi
+}
+
+set_description() {
+  local status="$1"
+  local error_msg="$2"
+  local desc=""
+  local ipv6_info=""
+  local wifi_match_str=""
+  local ssid_mode_str=""
+  local ssid_count=0
+  local bssid_count=0
+
+  # IPv6状态
+  if [ "${ipv6}" = "true" ]; then
+    ipv6_info="已启用"
+  else
+    ipv6_info="未启用"
+  fi
+
+  # 仅在服务运行且启用网络控制且开启 WiFi 匹配（SSID/BSSID）时显示
+  if [ "$status" = "running" ] && [ "${enable_network_service_control}" = "true" ] && [ "${use_ssid_matching}" = "true" ]; then
+    # 判断黑白名单模式
+    if [ "${use_wifi_list_mode}" = "blacklist" ]; then
+      ssid_mode_str="黑名单"
+    elif [ "${use_wifi_list_mode}" = "whitelist" ]; then
+      ssid_mode_str="白名单"
+    else
+      ssid_mode_str="未知模式"
+    fi
+    ssid_count=0
+    for ssid_item in "${wifi_ssids_list[@]}"; do
+      [ -n "$ssid_item" ] && ssid_count=$((ssid_count + 1))
+    done
+
+    bssid_count=0
+    for bssid_item in "${wifi_bssids_list[@]}"; do
+      [ -n "$bssid_item" ] && bssid_count=$((bssid_count + 1))
+    done
+
+    wifi_match_str=" | WiFi匹配（${ssid_mode_str}）SSID:${ssid_count} BSSID:${bssid_count}"
+  fi
+
+  case "$status" in
+    running)
+      desc="✅ Box服务运行中 | 内核: ${bin_name} | 代理模式: ${proxy_mode} | 网络: ${network_mode} | IPv6状态: ${ipv6_info} | DNS模式: ${dns_mode}${wifi_match_str}"
+      ;;
+    stopped)
+      desc="❌ Box服务已停止 | 上次运行内核: ${bin_name} | 代理已禁用"
+      ;;
+    idle)
+      desc="✨ Box模块已加载，等待服务启动"
+      ;;
+    error)
+      # 仅在出现配置错误时使用
+      local current_time
+      current_time=$(date "+%Y-%m-%d %H:%M:%S")
+      [ -z "${error_msg}" ] && error_msg="配置错误"
+      desc="⚠️ Box ${error_msg} | 时间: ${current_time} | 内核: ${bin_name} | 详情见日志: ${box_run}/${bin_name}.log"
+      ;;
+    *)
+      desc="💤 Box状态未知"
+      ;;
+  esac
+  local escaped_desc
+  escaped_desc=$(echo "${desc}" | sed -e 's/[&|#]/\\&/g')
+  sed -Ei "s#^description=.*#description=${escaped_desc}#g" "$PROPFILE"
+}
+get_dns_mode() {
+  dns_mode="未知"
+  if [ "${bin_name}" = "mihomo" ]; then
+    if grep -q "enhanced-mode: redir-host" "${mihomo_config}" 2>/dev/null; then
+      dns_mode="redir-host"
+    elif grep -q "enhanced-mode: fake-ip" "${mihomo_config}" 2>/dev/null; then
+      dns_mode="fake-ip"
+    fi
+  elif [ "${bin_name}" = "sing-box" ]; then
+    if grep -q '"type" *: *"fakeip"' "${sing_config}" 2>/dev/null; then
+      dns_mode="fake-ip"
+    else
+      dns_mode="redir-host"
+    fi
+  fi
+  export dns_mode
+}
+
+start_box() {
+  find_packages_uid
+  get_dns_mode
+  set_description running
+
+  : > "${box_log}"
+  box_version=$(busybox awk '!/^ *#/ && /version=/ { print $0 }' "/data/adb/modules/box_for_root/module.prop" 2>/dev/null)
+  startup_timezone="$(getprop persist.sys.timezone)"
+  startup_datetime="$(date)"
+  startup_network="$(getprop gsm.sim.operator.alpha) $(getprop gsm.network.type)"
+  startup_abi="$(getprop ro.product.cpu.abi)"
+  log Info "Timezone: ${startup_timezone} | Time: ${startup_datetime}"
+  log Info "Network: ${startup_network}"
+  log Info "Module: ${box_version} (${startup_abi})"
+  log Info "━━━━━━━━━━━━━━━━━━"
+
+  # 如果 bin_name 仍在运行则更新 iptables
+  PIDS=("${bin_list[@]}")
+  PID=""
+  i=0
+
+  while [ -z "$PID" ] && [ "$i" -lt "${#PIDS[@]}" ]; do
+    PID=$(busybox pidof "${PIDS[$i]}")
+    i=$((i+1))
+  done
+
+  if [ -n "$PID" ]; then
+    pid_name="${box_dir}/run/pid_name.txt"
+    ps -p $PID -o comm= > "${pid_name}"
+    sed -i '/^[[:space:]]*$/d' "${pid_name}"
+    log Debug "$(<"${pid_name}")(PID: $PID) 服务仍在运行，自动重启 BOX"
+    rm -f "${pid_name}"
+    stop_box
+    start_box && "${scripts_dir}/box.iptables" renew
+    exit 1
+  fi
+
+  # 检查 bin_name 是否已定义
+  case "${bin_name}" in
+    mihomo|xray|sing-box|v2fly|hysteria)
+      log Info "启动服务"
+      ;;
+    *)
+      log Error "bin_name: [ ${bin_name} ] 未定义或未知"
+      exit 1
+      ;;
+  esac
+
+  # busybox 检查
+  busybox_code=$(busybox | busybox grep -oE '[0-9.]*' | head -n 1)
+  if [ -n "${busybox_code}" ] && [ "$(echo "${busybox_code}" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" -lt "$(echo "1.36.1" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" ]; then
+    log Warning "当前 $(which busybox) v${busybox_code}，请更新到 v1.36.1+"
+  else
+    log Info "当前 $(which busybox) v${busybox_code}"
+  fi
+
+  box_permission
+  box_check_bin
+  box_check_logs
+
+  # 如果 run_crontab 不等于 "false" 则执行 box_run_crontab
+  [ "${run_crontab}" = "true" ] && box_run_crontab || log Info "定时任务已禁用"
+
+  if [ -z "${proxy_mode}" ]; then
+    M1=$(busybox awk '!/^ *#/ && /mode:/{print $0}' "${pkg_config}")
+    [ -z $M1 ] && printf "\nmode:white" >> "${pkg_config}"
+    log Debug "代理模式为空，在 ${pkg_config} 中添加 mode:white"
+  fi
+
+  # 执行 box_cgroup, box_run_bin, box_detected_port, box_bin_alive 函数
+  box_run_bin
+  box_cgroup
+
+  busybox sleep 0.3
+  box_bin_alive
+
+  true
+}
+
+stop_box() {
+  stop_cron
+  for bin in "${bin_list[@]}"; do
+    if busybox pgrep "${bin}" >/dev/null; then
+      if busybox pkill -15 "${bin}" >/dev/null; then
+        :
+      else
+        killall -15 "${bin}" >/dev/null 2>&1 || kill -15 "$(busybox pidof "${bin}")" >/dev/null 2>&1
+      fi
+    fi
+  done
+
+  count=0
+  while [ "${count}" -lt 15 ]; do
+    busybox pidof "${bin_name}" >/dev/null 2>&1 || break
+    busybox sleep 0.1
+    count=$((count + 1))
+  done
+
+  if ! busybox pidof "${bin_name}" >/dev/null; then
+    if [ -f "${box_pid}" ]; then
+      rm -f "${box_pid}"
+    fi
+    log Warning "${bin_name} 已关闭，服务已停止。"
+    TOAST=1 log Warning "${bin_name} 已断开连接。"
+    [ -t 1 ] && echo -e "${white}━━━━━━━━━━━━━━━━━━${normal}"
+  else
+    log Warning "${bin_name} 未完全停止，可能正在关闭或关闭失败。"
+    force_stop
+  fi
+
+  set_description stopped
+}
+
+stop_cron() {
+  if ! busybox pkill -f "busybox crond" >/dev/null 2>&1; then
+    cronkill=$(busybox pgrep -f "crond -c ${box_run}")
+    for cron in ${cronkill}; do
+      kill -15 "${cron}" >/dev/null 2>&1
+    done
+  fi
+}
+
+force_stop() {
+  log Warning "尝试强制关闭"
+  local PID
+  PID=$(cat "${box_pid}" 2>/dev/null)
+
+  if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+    kill -9 "$PID" >/dev/null 2>&1
+  else
+    for bin in "${bin_list[@]}"; do
+      busybox pkill -9 "${bin}" >/dev/null 2>&1
+    done
+  fi
+
+  if ! busybox pgrep -f "${bin_name}" >/dev/null 2>&1; then
+    log Warning "完成，现在可以安心休息了"
+    rm -f "${box_pid}"
+  fi
+}
+
+# 检查系统是否安装了 busybox
+if ! command -v busybox &> /dev/null; then
+  log Error "$(which busybox) 命令未找到"
+  exit 1
+fi
+
+case "$1" in
+  start)
+    stop_box >/dev/null 2>&1
+    if start_box; then
+        $scripts_dir/box.tool webroot >/dev/null 2>&1
+    fi
+    ;;
+  stop)
+    stop_box
+    ;;
+  restart)
+    "${scripts_dir}/box.iptables" disable >/dev/null 2>&1 &
+    _r_ipt=$!
+    stop_box
+    wait "${_r_ipt}" 2>/dev/null
+
+    start_box &
+    _r_sb=$!
+    "${scripts_dir}/box.iptables" renew >/dev/null 2>&1 &
+    _r_ipt=$!
+    wait "${_r_sb}"; _r_rc=$?
+    wait "${_r_ipt}" 2>/dev/null
+    if [ "${_r_rc}" -eq 0 ]; then
+      $scripts_dir/box.tool webroot >/dev/null 2>&1
+    else
+      log Error "核心启动失败，回滚 iptables 规则。"
+      "${scripts_dir}/box.iptables" disable >/dev/null 2>&1
+    fi
+    ;;
+  status)
+    # 检查服务是否在运行
+    if busybox pidof "${bin_name}" >/dev/null; then
+      case "${bin_name}" in
+        mihomo) echo "${yellow}$("${bin_path}" -v)${normal}";;
+        *) echo "${yellow}$("${bin_path}" version)${normal}";;
+      esac
+      box_bin_status
+    else
+      log Warning "${bin_name} 已关闭，服务已停止"
+    fi
+    ;;
+  cron)
+    run_crontab="true"
+    stop_cron
+    box_run_crontab
+    ;;
+  kcron)
+    stop_cron
+    ;;
+  *)
+    echo "${red}$0 '$1' 未找到${normal}" >&2
+    echo "${yellow}用法${normal}: ${green}$0${normal} {${yellow}start|stop|restart|status|cron|kcron${normal}}" >&2
+    ;;
+esac

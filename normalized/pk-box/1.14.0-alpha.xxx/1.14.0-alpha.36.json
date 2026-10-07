@@ -1,0 +1,429 @@
+{
+  "dns": {
+    "cache_capacity": 4096,
+    "final": "ggdns",
+    "optimistic": {
+      "enabled": true,
+      "timeout": "1h0m0s"
+    },
+    "rules": [
+      {
+        "action": "reject",
+        "ip_version": 6
+      },
+      {
+        "action": "reject",
+        "query_type": [
+          "SVCB",
+          "HTTPS",
+          "PTR"
+        ]
+      },
+      {
+        "rule_set": "private",
+        "server": "local-dns"
+      },
+      {
+        "rule_set": "cn",
+        "server": "local-dns"
+      },
+      {
+        "rewrite_ttl": 300,
+        "rule_set": [
+          "Google",
+          "fcm",
+          "Android",
+          "proxy",
+          "gfw",
+          "ai"
+        ],
+        "server": "fakeip"
+      },
+      {
+        "action": "reject",
+        "rule_set": [
+          "ads",
+          "httpDNS",
+          "DNSreject"
+        ]
+      },
+      {
+        "rule_set": [
+          "games",
+          "networktest",
+          "fakeip-filter"
+        ],
+        "server": "ggdns"
+      },
+      {
+        "action": "reject",
+        "invert": true,
+        "query_type": [
+          "A",
+          "AAAA"
+        ]
+      }
+    ],
+    "servers": [
+      {
+        "predefined": {
+          "dns.google": [
+            "8.8.8.8",
+            "8.8.4.4"
+          ]
+        },
+        "tag": "hosts_fix",
+        "type": "hosts"
+      },
+      {
+        "tag": "local-dns",
+        "type": "local"
+      },
+      {
+        "inet4_range": "198.18.0.0/15",
+        "tag": "fakeip",
+        "type": "fakeip"
+      },
+      {
+        "detour": "proxy",
+        "domain_resolver": "hosts_fix",
+        "server": "dns.google",
+        "tag": "ggdns",
+        "type": "https"
+      }
+    ],
+    "timeout": "5s"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",
+      "store_dns": true,
+      "store_fakeip": true
+    }
+  },
+  "http_clients": [
+    {
+      "connection_receive_window": 0,
+      "stream_receive_window": 0,
+      "tag": "default",
+      "version": 2
+    }
+  ],
+  "inbounds": [
+    {
+      "address": [
+        "10.8.0.1/24",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "auto_route": true,
+      "endpoint_independent_nat": true,
+      "mtu": 1500,
+      "stack": "mixed",
+      "strict_route": true,
+      "tag": "tun-in",
+      "type": "tun",
+      "udp_timeout": "5m0s"
+    }
+  ],
+  "log": {
+    "level": "fatal",
+    "timestamp": true
+  },
+  "outbounds": [
+    {
+      "tag": "DIRECT",
+      "type": "direct"
+    },
+    {
+      "default": "节点名称",
+      "outbounds": [
+        "auto",
+        "节点名称",
+        "DIRECT"
+      ],
+      "tag": "proxy",
+      "type": "selector"
+    },
+    {
+      "interval": "10m0s",
+      "outbounds": [
+        "节点名称"
+      ],
+      "tag": "auto",
+      "type": "urltest",
+      "url": "http://www.gstatic.com/generate_204"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "default_domain_resolver": "ggdns",
+    "final": "proxy",
+    "rule_set": [
+      {
+        "http_client": "default",
+        "tag": "cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cn.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "cnip",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cnip.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "private",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/private.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "ads",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ads.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "proxy",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/proxy.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "gfw",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/gfw.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "ai",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ai.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "games",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "microsoft-cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/microsoft-cn.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "apple-cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/apple-cn.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "games-cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games-cn.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "networktest",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/networktest.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "httpDNS",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/BlockHttpDNS/BlockHttpDNS.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "DNSreject",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/AdGuardSDNSFilter/AdGuardSDNSFilter.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "Google",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/Google/Google.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "fcm",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/GoogleFCM/GoogleFCM.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "Android",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/Android/Android.srs"
+      },
+      {
+        "http_client": "default",
+        "tag": "fakeip-filter",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/fakeip-filter.srs"
+      }
+    ],
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "reject",
+        "protocol": "quic"
+      },
+      {
+        "action": "hijack-dns",
+        "mode": "or",
+        "rules": [
+          {
+            "port": 53
+          },
+          {
+            "protocol": "dns"
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "reject",
+        "mode": "and",
+        "rules": [
+          {
+            "ip_version": 6
+          },
+          {
+            "default_interface_address": "2000::/3",
+            "invert": true
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "reject",
+        "port": [
+          853,
+          5353
+        ]
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "DIRECT"
+      },
+      {
+        "ip_cidr": "198.18.0.0/15",
+        "outbound": "proxy"
+      },
+      {
+        "outbound": "proxy",
+        "rule_set": [
+          "Google",
+          "fcm",
+          "Android",
+          "proxy",
+          "gfw",
+          "ai",
+          "games",
+          "networktest"
+        ]
+      },
+      {
+        "outbound": "DIRECT",
+        "rule_set": [
+          "cn",
+          "cnip"
+        ]
+      },
+      {
+        "outbound": "DIRECT",
+        "rule_set": "private"
+      },
+      {
+        "outbound": "DIRECT",
+        "rule_set": [
+          "microsoft-cn",
+          "apple-cn",
+          "games-cn"
+        ]
+      },
+      {
+        "action": "reject",
+        "protocol": [
+          "stun",
+          "dtls"
+        ]
+      },
+      {
+        "action": "reject",
+        "mode": "or",
+        "rules": [
+          {
+            "network": "udp",
+            "port": [
+              3478,
+              5349,
+              5350,
+              19302,
+              10000
+            ]
+          },
+          {
+            "domain_regex": "^stun\\..+"
+          },
+          {
+            "domain_keyword": [
+              "stun",
+              "turn"
+            ]
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "route-options",
+        "udp_connect": true,
+        "udp_disable_domain_unmapping": true
+      },
+      {
+        "action": "resolve"
+      },
+      {
+        "outbound": "proxy"
+      }
+    ]
+  },
+  "services": [
+    {
+      "access_control_allow_origin": "http://127.0.0.1:9091",
+      "access_control_allow_private_network": true,
+      "dashboard": true,
+      "listen": "127.0.0.1",
+      "listen_port": 9091,
+      "tag": "api",
+      "type": "api"
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "$schema": "https://sing-box.sagernet.org/schema.json",
+  "certificate_providers": [
+    {
+      "data_directory": "/var/lib/sing-box/acme",
+      "domain": [
+        "your_server_ip"
+      ],
+      "email": "admin@example.com",
+      "key_type": "ed25519",
+      "tag": "ip_cert",
+      "type": "acme"
+    }
+  ],
+  "dns": {
+    "final": "cloudflare",
+    "optimistic": true,
+    "rules": [
+      {
+        "action": "evaluate",
+        "server": "cloudflare",
+        "tag": "cf"
+      },
+      {
+        "action": "evaluate",
+        "server": "google",
+        "tag": "gg"
+      },
+      {
+        "action": "respond",
+        "match_response": "cf",
+        "race": true,
+        "response_rcode": "NOERROR"
+      },
+      {
+        "action": "respond",
+        "match_response": "gg",
+        "race": true,
+        "response_rcode": "NOERROR"
+      }
+    ],
+    "servers": [
+      {
+        "server": "1.1.1.1",
+        "tag": "cloudflare",
+        "type": "udp"
+      },
+      {
+        "server": "8.8.8.8",
+        "tag": "google",
+        "type": "udp"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "/var/lib/sing-box/cache.db",
+      "store_dns": true
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "::",
+      "listen_port": 50443,
+      "tag": "anytls-in",
+      "tcp_fast_open": true,
+      "tcp_multi_path": true,
+      "tls": {
+        "certificate_provider": "ip_cert",
+        "enabled": true,
+        "server_name": "your_server_ip"
+      },
+      "type": "anytls",
+      "users": [
+        {
+          "name": "singbox",
+          "password": ""
+        }
+      ]
+    },
+    {
+      "down_mbps": 200,
+      "ignore_client_bandwidth": false,
+      "listen": "::",
+      "listen_port": 51443,
+      "masquerade": {
+        "content": "<!DOCTYPE html><html><head><title>Welcome</title></head><body><h1>It works!</h1></body></html>",
+        "headers": {
+          "Content-Type": [
+            "text/html"
+          ]
+        },
+        "status_code": 200,
+        "type": "string"
+      },
+      "tag": "hy2-in",
+      "tls": {
+        "certificate_provider": "ip_cert",
+        "enabled": true,
+        "server_name": "your_server_ip"
+      },
+      "type": "hysteria2",
+      "up_mbps": 200,
+      "users": [
+        {
+          "name": "singbox",
+          "password": ""
+        }
+      ]
+    },
+    {
+      "listen": "::",
+      "listen_port": 52443,
+      "mode": "default",
+      "psk": "",
+      "tag": "snell-in",
+      "tcp_fast_open": true,
+      "tcp_multi_path": true,
+      "type": "snell",
+      "version": 6
+    },
+    {
+      "address": [
+        "172.18.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "auto_redirect": true,
+      "auto_route": true,
+      "stack": "mixed",
+      "strict_route": true,
+      "tag": "tun",
+      "type": "tun"
+    }
+  ],
+  "log": {
+    "level": "info",
+    "output": "/var/log/sing-box.log",
+    "timestamp": true
+  },
+  "ntp": {
+    "enabled": true,
+    "interval": "30m",
+    "server": "time.apple.com",
+    "server_port": 123
+  },
+  "outbounds": [
+    {
+      "tag": "direct",
+      "type": "direct"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "cloudflare"
+    },
+    "final": "direct",
+    "rules": [
+      {
+        "action": "sniff",
+        "inbound": [
+          "anytls-in",
+          "hy2-in",
+          "snell-in",
+          "tun"
+        ]
+      },
+      {
+        "action": "route-options",
+        "inbound": [
+          "anytls-in",
+          "hy2-in",
+          "snell-in"
+        ],
+        "udp_disable_domain_unmapping": true
+      }
+    ]
+  }
+}

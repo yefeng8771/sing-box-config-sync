@@ -1,0 +1,872 @@
+{
+  // ================================================
+  // 日志配置 (log)
+  // 控制 sing-box 的日志输出级别和是否显示时间戳
+  // ================================================
+  "log": {
+    // 日志级别: trace
+    // trace 是最详细的日志级别，会输出所有调试信息，包括数据包内容等。
+    // 其他可选值: debug, info, warn, error, fatal, panic
+    // 疑问: 在生产环境使用 trace 会产生大量日志，可能影响性能和存储，仅建议在调试时使用。
+    "level": "trace",
+
+    // 是否在每行日志前添加时间戳
+    // true: 显示详细时间，便于排查问题发生的时间点
+    "timestamp": true
+  },
+
+  // ================================================
+  // DNS 配置 (dns)
+  // 定义 DNS 服务器和 DNS 解析规则，是整个代理系统的核心之一
+  // ================================================
+  "dns": {
+    // ---------- DNS 服务器列表 ----------
+    // 所有被定义的 DNS 服务器都会在这里列出，供后续规则引用
+    "servers": [
+      {
+        // 类型: hosts
+        // 作用类似于本地 hosts 文件，可以手动指定域名的 IP 地址
+        // 这里的 tag 是 "hosts_fix"，用于解决 DNS 解析的死循环问题
+        "type": "hosts",
+        "tag": "hosts_fix",
+
+        // 预定义的域名-IP 映射表
+        // 这个配置非常关键: 强制将 DoH 服务器域名指向其真实 IP
+        // 如果不这样做，系统可能会尝试通过代理去解析 DoH 服务器的域名，
+        // 但代理本身可能依赖 DNS 解析，从而形成死循环 (鸡生蛋还是蛋生鸡的问题)。
+        // 解释: 系统启动后，hosts_fix 会直接告诉系统 dns.google 在 8.8.8.8，
+        // 而不需要发起网络 DNS 查询。
+        "predefined": {
+          // 定义 dns.google 的 IP 地址
+          // 这样 ggdns 服务器在解析 dns.google 时不会产生递归查询
+          "dns.google": [
+            "8.8.8.8",   // Google DNS 主 IP
+            "8.8.4.4"    // Google DNS 备用 IP
+          ],
+          // 定义 cloudflare-dns.com 的 IP 地址
+          // 同样防止 backup-dns 服务器产生递归查询
+          "cloudflare-dns.com": [
+            "1.1.1.1",   // Cloudflare DNS 主 IP
+            "1.0.0.1"    // Cloudflare DNS 备用 IP
+          ]
+        }
+      },
+      {
+        // 类型: local
+        // 使用系统本地 DNS 服务器进行解析 (即路由器/ISP 分配的 DNS)
+        // 通常用于解析国内网站，因为国内网站用本地 DNS 解析速度快，
+        // 且能获得针对 CDN 优化过的 IP 地址。
+        "type": "local",
+        "tag": "local-dns"
+      },
+      {
+        // 类型: fakeip
+        // 一种特殊的 DNS 处理方式，返回一个虚假的 IP 地址。
+        // 原理: 当客户端请求解析域名时，不返回真实 IP，而是从虚拟地址池中分配一个假 IP。
+        // 好处: 可以精确控制哪些连接走代理，因为系统路由是基于 IP 的。
+        // 解释: 所有被分配到 fakeip 的域名，其连接都会被路由规则识别并走代理。
+        "type": "fakeip",
+        "tag": "fakeip",
+
+        // 定义 fakeip 使用的 IPv4 地址范围
+        // 198.18.0.0/15 是 RFC 2544 规定的用于基准测试的保留地址，
+        // 通常不会与公网或私网地址冲突，适合用作 fakeip。
+        // 注意: 路由规则中需要对 198.18.0.0/15 进行特殊处理，将其强制走代理。
+        "inet4_range": "198.18.0.0/15"
+      },
+      {
+        // 类型: https (DNS over HTTPS)
+        // 使用加密的 HTTPS 协议进行 DNS 查询，防止 DNS 被劫持或投毒
+        // 主 DNS 服务器，代号 ggdns
+        "type": "https",
+        "tag": "ggdns",
+
+        // 指定该 DNS 服务器使用的出站连接
+        // "proxy" 意味着所有对 ggdns 的查询都会通过代理服务器发出
+        // 目的: 绕过 DNS 污染，得到正确的域名解析结果
+        "detour": "proxy",
+
+        // 指定用于解析当前 DNS 服务器域名的 DNS 服务器
+        // 这里指定 "hosts_fix"，即使用前面定义的 hosts 映射
+        // 解释: 系统要连接 dns.google 的 DoH 服务，首先要知道 dns.google 的 IP。
+        // 如果不指定，它又会去查其他 DNS，可能造成循环。
+        // 这里配置为 hosts_fix，直接从本地映射表获取 IP，不产生网络请求。
+        "domain_resolver": "hosts_fix",
+
+        // DoH 服务地址
+        // 完整的 URL 是 https://dns.google/dns-query
+        "server": "dns.google"
+      },
+      {
+        // 类型: https
+        // 备用 DNS 服务器，代号 backup-dns
+        // 使用 Cloudflare 的 DoH 服务
+        "type": "https",
+        "tag": "backup-dns",
+
+        // 同样通过代理连接
+        "detour": "proxy",
+
+        // 同样使用 hosts_fix 解析 Cloudflare DoH 服务器的域名
+        "domain_resolver": "hosts_fix",
+
+        // Cloudflare DoH 服务地址
+        // 完整的 URL 是 https://cloudflare-dns.com/dns-query
+        "server": "cloudflare-dns.com"
+      }
+    ],
+
+    // ---------- DNS 规则 ----------
+    // DNS 规则列表，按照从上到下的顺序匹配。
+    // 一旦某个规则的 "规则匹配条件" 全部满足，就执行该规则的 "动作 (action/server)"。
+    // 总结: 这里的规则设计思路是"白名单+精确分流"。
+    "rules": [
+      {
+        // 规则 1: 拦截所有 IPv6 的 DNS 查询
+        // 逻辑: 如果你的网络环境没有配置 IPv6，或者 IPv6 路由经常出问题，
+        // 直接拒绝 IPv6 的 DNS 请求 (AAAA 记录) 可以避免程序优先选择 IPv6 而导致连接失败。
+        // 解释: 客户端看不到 IPv6 地址，自然只会尝试 IPv4 连接。
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        // 规则 2: 拒绝特定类型的 DNS 查询
+        // SVCB/HTTPS 记录是用于 HTTP/3 或 ECH 的，某些网络环境下这些请求可能造成泄漏或连接问题。
+        // PTR 记录是反向解析 (IP 查域名)，通常不需要，也可能泄露本地 IP。
+        // 解释: 拒绝这些查询可以提高隐私性和连接稳定性。
+        "query_type": [
+          "SVCB",   // 服务绑定记录，用于 ECH 和 HTTP/3
+          "HTTPS",   // HTTPS 资源记录，类似 SVCB
+          "PTR"      // 反向 DNS 查询，IP 地址转域名
+        ],
+        "action": "reject"
+      },
+      {
+        // 规则 3: 私有/局域网域名解析
+        // rule_set: "private" 包含了局域网内的域名，如 .local, .home, .lan 等。
+        // 对于这些域名，使用本地 DNS 服务器解析。
+        // 解释: 私有域名在公网 DNS 上查不到，必须用本地 DNS。
+        "rule_set": "private",
+        "server": "local-dns"
+      },
+      {
+        // 规则 4: 国内常见域名解析 (中国大陆 CDN 优化)
+        // 包含: cn (通用国内域名), microsoft-cn, apple-cn, games-cn
+        // 这些域名通常有国内 CDN 节点，使用本地 DNS 可以获得最快的访问速度。
+        // 解释: 如果走代理 DNS，可能会解析到国外的 CDN 节点，导致速度变慢。
+        "rule_set": [
+          "cn",           // 通用中国大陆网站
+          "microsoft-cn", // 微软中国服务
+          "apple-cn",     // Apple 中国服务 (如 iCloud 中国版)
+          "games-cn"      // 国内游戏平台
+        ],
+        "server": "local-dns"
+      },
+      {
+        // 规则 5: 需要代理的域名解析 - 使用 FakeIP
+        // 包含: Google 服务, Firebase Cloud Messaging, Android 系统服务, 通用代理规则, GFW 列表, AI 服务
+        // 这些域名需要走代理，所以分配 FakeIP。
+        // 解释: 分配了 FakeIP 后，后续流量匹配路由规则，会命中 198.18.0.0/15 的规则从而走代理。
+        "rule_set": [
+          "Google",     // Google 搜索、Gmail、YouTube 等
+          "fcm",        // Google FCM 推送服务，影响 Android 消息推送
+          "Android",    // Android 系统级网络检测和更新服务
+          "proxy",      // 通用规则集，包含大量需要代理的网站
+          "gfw",        // GFW 干扰列表，被污染的域名
+          "ai"          // AI 服务如 ChatGPT、Gemini 等
+        ],
+        "server": "fakeip",
+
+        // 重写 DNS 结果的 TTL (生存时间)
+        // 默认的 TTL 可能很短，导致频繁发起 DNS 查询。
+        // 这里强制设置为 300 秒 (5分钟)，减少 DNS 查询次数，提高性能。
+        // 说明: FakeIP 本质上不存在 TTL，这里主要是控制客户端缓存 DNS 结果的时间。
+        "rewrite_ttl": 300
+      },
+      {
+        // 规则 6: 拦截广告和恶意 DNS 请求
+        // httpDNS: 禁止使用 HTTP 自行进行 DNS 解析的域名 (防止应用绕过系统 DNS)
+        // DNSreject/ads: 广告、跟踪器、恶意软件的域名
+        // 对这些请求直接拒绝，阻止广告加载和隐私追踪。
+        "rule_set": [
+          "httpDNS",     // 自定义 DNS 服务的域名 (如应用内置的 DNS)
+          "DNSreject",   // 广告 DNS 过滤规则
+          "ads"          // 通用广告规则
+        ],
+        "action": "reject"
+      },
+      {
+        // 规则 7: 特殊域名第一次解析
+        // 这些规则集包含游戏、网络测试和需要排除在 fakeip 之外的域名。
+        // action: "evaluate" 表示先不返回 fakeip，而是进行一次真实的 DNS 解析 (使用 ggdns)。
+        // 目的: 某些应用或服务可能不兼容 fakeip (如需要真实 IP 验证)，所以先解析出真实 IP。
+        // 疑惑: 为什么先 evaluate 再 reject？看下一条规则。
+        "rule_set": [
+          "games",          // 游戏平台 (如 Steam, Epic)
+          "networktest",    // 网络检测服务 (如 captive portal 检测)
+          "fakeip-filter"   // 明确需要排除在 fakeip 之外的域名
+        ],
+        "action": "evaluate",
+        "server": "ggdns"
+      },
+      {
+        // 规则 8: 对规则 7 解析结果的二次处理
+        // match_response: true 表示检查 DNS 解析返回的 IP 地址。
+        // ip_is_private: true 检查是否返回了私有 IP。
+        // 逻辑: 规则 7 用 ggdns 解析了域名，如果 DNS 服务器返回了私有 IP (如 127.0.0.1)，
+        // 说明这个域名可能在 DNS 层面被污染或错误解析，那么应该拒绝这个结果。
+        // 总结: 这是一种防污染的机制，先获取解析结果，如果结果不合法(私有 IP)，就拒绝。
+        // 解释: 真实的公网服务不可能返回私有 IP。
+        "rule_set": [
+          "games",
+          "networktest",
+          "fakeip-filter"
+        ],
+        "match_response": true,
+        "ip_is_private": true,
+        "action": "reject"
+      },
+      {
+        // 规则 9: 拒绝非标准的查询
+        // query_type: 只匹配 A (IPv4) 和 AAAA (IPv6) 记录。
+        // invert: true 表示反转匹配，即匹配除 A 和 AAAA 之外的所有类型。
+        // 逻辑: 只允许查询 A 和 AAAA，其他如 TXT, MX, NS 等记录全部拒绝。
+        // 解释: 对于透明代理环境，客户端通常只需要 IP 地址，其他记录不需要，拒绝它们可以防止信息泄露。
+        "query_type": [
+          "A",     // IPv4 地址查询
+          "AAAA"   // IPv6 地址查询
+        ],
+        "invert": true,   // 反转匹配，即 "不是 A 且不是 AAAA" 的查询
+        "action": "reject"
+      }
+    ],
+
+    // ---------- DNS 默认配置 ----------
+    // 如果所有 DNS 规则都没有匹配，使用这个最终的默认服务器
+    "final": "ggdns",
+
+    // DNS 查询超时时间
+    // 3s 表示超过 3 秒未收到响应就视为超时
+    "timeout": "3s",
+
+    // DNS 缓存容量
+    // 最多缓存 16384 条 DNS 解析结果，减少重复查询
+    "cache_capacity": 16384,
+
+    // 乐观缓存 (optimistic)
+    // 当 DNS 记录 TTL 过期后，在后台异步更新，同时先返回旧的缓存结果。
+    // 好处: 避免因为等待 DNS 更新而阻塞新连接。
+    // 总结: 这个功能可以显著提升浏览体验，不会因为 DNS 更新造成卡顿。
+    "optimistic": {
+      "enabled": true,
+      // 如果后台更新超时 (5分钟)，会放弃并标记为失败。
+      "timeout": "5m0s"
+    }
+  },
+
+  // ================================================
+  // HTTP 客户端配置 (http_clients)
+  // 定义用于 HTTP 请求的客户端配置，例如下载规则集文件
+  // ================================================
+  "http_clients": [
+    {
+      // 客户端标签，供其他配置引用
+      // 例如 route 配置中的 default_http_client 会用到这个标签
+      "tag": "default",
+
+      // HTTP 客户端版本
+      // 2 代表使用 HTTP/2 协议进行通信，提升下载规则集的效率
+      "version": 2
+    }
+  ],
+
+  // ================================================
+  // 入站配置 (inbounds)
+  // 定义如何接收和处理进入的网络流量
+  // ================================================
+  "inbounds": [
+    {
+      // 类型: TUN (虚拟网卡模式)
+      // 创建一个虚拟网络接口，接管系统所有流量 (类似 VPN)
+      // 这种模式比系统代理更彻底，可以代理所有程序的流量
+      "type": "tun",
+      "tag": "tun-in",
+
+      // 最大传输单元，设置稍大一些可以提高吞吐量
+      // 9000 是巨型帧的大小，前提是网络路径支持，否则可能碎包。
+      // 说明: 如果不确定，可以用 1500 (标准以太网 MTU)。
+      "mtu": 9000,
+
+      // TUN 接口的 IP 地址和子网
+      // 解释: 这个地址是这个虚拟网卡的 IP，同时也是客户端的网关。
+      "address": "10.8.0.1/24",
+
+      // DNS 劫持模式
+      // hijack: 将所有发往 53 端口的 UDP 流量重定向到 sing-box 内部 DNS 服务器。
+      // 说明: 确保所有程序都使用我们配置的 DNS，避免 DNS 泄漏。
+      "dns_mode": "hijack",
+
+      // 自动添加路由规则
+      // sing-box 会自动配置系统路由表，将流量引入 TUN 接口。
+      // 解释: 不需要手动设置路由，程序会自动完成。
+      "auto_route": true,
+
+      // 严格路由模式
+      // 防止路由冲突，通常和 auto_route 一起使用。
+      // 解释: 让系统更彻底地接管路由。
+      "strict_route": true,
+
+      // UDP 连接超时
+      // 如果 UDP 会话 1 分钟内没有数据传输，就清理该连接。
+      // 目的: 释放资源，防止内存泄漏。
+      "udp_timeout": "1m0s",
+
+      // 网络堆栈类型
+      // system: 使用操作系统的 TCP/IP 堆栈。
+      // 其他选项: gvisor (用户态堆栈，性能较低但兼容性好)
+      "stack": "system",
+
+      // 端点无关 NAT (Endpoint Independent NAT)
+      // 这是一种 NAT 行为，无论发往哪个目标，只要源相同，就使用相同的 NAT 映射。
+      // 解释: 对 P2P 连接和游戏连接非常有帮助，可以提高 NAT 穿透成功率。
+      "endpoint_independent_nat": true
+    }
+  ],
+
+  // ================================================
+  // 出站配置 (outbounds)
+  // 定义如何发送处理后的网络流量到目标
+  // ================================================
+  "outbounds": [
+    {
+      // 类型: direct
+      // 直连模式，流量不经过任何代理，直接访问目标服务器
+      // 通常用于国内网站或不需要代理的流量
+      "type": "direct",
+      "tag": "DIRECT"
+    },
+    {
+      // 类型: selector
+      // 选择器，允许用户手动选择使用哪个出站节点
+      "type": "selector",
+      "tag": "proxy",  // 这个标签被用于 dns 和 route 配置中
+
+      // 可供选择的节点列表
+      "outbounds": [
+        "auto",       // 自动选择 (urltest 组)
+        "节点名称",   // 一个具体的代理节点
+        "DIRECT"      // 也可以选择直连 (备选)
+      ],
+
+      // 默认选择的节点
+      // 当用户没有手动选择时，使用这个节点
+      "default": "节点名称"
+    },
+    {
+      // 类型: urltest
+      // 自动测试组，会自动检测组内节点的连接延迟，
+      // 并选择延迟最低的节点作为出口。
+      // 总结: 这个功能可以实现故障转移和最优节点选择。
+      "type": "urltest",
+      "tag": "auto",
+
+      // 进行延迟测试的节点列表
+      "outbounds": [
+        "节点名称"   // 这里通常可以有多个节点，组成自动选优池
+      ],
+
+      // 用于测试延迟的 URL
+      // 这个地址是 Google 的生成页面，稳定且响应快，适合做延迟测试。
+      "url": "http://www.gstatic.com/generate_204",
+
+      // 自动测试的时间间隔
+      // 每 10 分钟测试一次所有节点的延迟，更新最优选择。
+      "interval": "10m0s"
+    }
+    // 注意: 这里只是一个示例，"//节点配置" 意味着你需要替换成真实的出站节点配置。
+    // 例如 VMess, Shadowsocks, Trojan 等协议的节点配置。
+  ],
+
+  // ================================================
+  // 路由配置 (route)
+  // 定义流量分流的规则，是整个代理系统的核心
+  // ================================================
+  "route": {
+    // ---------- 路由规则 ----------
+    // 路由规则列表，同样按从上到下的顺序匹配。
+    // 第一个完全匹配的规则将被执行，后续规则被忽略。
+    "rules": [
+      {
+        // 规则 1: 流量嗅探 (sniff)
+        // 这个动作会开启域名嗅探功能。
+        // 解释: 在流量刚建立时，尝试从数据包中嗅探域名信息 (如 TLS SNI, HTTP Host)。
+        // 这对于识别 IP 直连的流量非常关键，可以将其转换为域名后再进行规则匹配。
+        // 注意: 这个规则通常放在最前面。
+        "action": "sniff"
+      },
+      {
+        // 规则 2: 强制部分 Google/微软服务走代理
+        // 这些域名是 Google APIs、GitHub 等服务，通常需要代理才能稳定访问。
+        // 解释: 即使它们可能在某些 DNS 列表里没有，这里手动强制指定走代理。
+        "domain_suffix": [
+          "googleapis.com",        // Google API 服务
+          "googleusercontent.com", // Google 用户内容 CDN
+          "www.gstatic.com",       // Google 静态资源
+          "github.com",            // GitHub 主站
+          "githubusercontent.com"  // GitHub 用户内容 CDN
+        ],
+        "outbound": "proxy"
+      },
+      {
+        // 规则 3: 拒绝 QUIC 协议
+        // QUIC 是基于 UDP 的 HTTP/3 协议。
+        // 解释: 在某些网络环境和代理软件中，QUIC 会绕过路由规则，造成流量泄漏，
+        // 或者因为 UDP 代理不稳定导致连接失败。直接阻断 QUIC 会强制客户端降级到 HTTP/2 (TCP)。
+        "protocol": "quic",
+        "action": "reject",
+        "method": "drop"  // drop 方式拒绝，直接丢弃数据包，不回复任何信息。
+      },
+      {
+        // 规则 4: 劫持 DNS 流量
+        // 这是一个逻辑组合规则，"mode": "or" 表示满足其中一个条件即可。
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            // 条件 1: 目标端口是 53 (标准 DNS 端口)
+            "port": 53
+          },
+          {
+            // 条件 2: 协议被检测为 DNS
+            "protocol": "dns"
+          }
+        ],
+        // hijack-dns: 将匹配到的 DNS 流量重定向到内部 DNS 模块。
+        // 解释: 防止应用使用硬编码的 DNS 服务器，所有 DNS 查询都经过我们配置的 DNS。
+        "action": "hijack-dns"
+      },
+      {
+        // 规则 5: 拒绝无效的 IPv6 流量
+        // 逻辑: "and" 模式，所有条件必须同时满足。
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          {
+            // 条件 1: 是 IPv6 流量
+            "ip_version": 6
+          },
+          {
+            // 条件 2: 不是全局单播 IPv6 地址 (2000::/3 是公网 IPv6 地址范围)
+            // invert: true 表示取反，即 "不是公网 IPv6"
+            // 解释: 排除掉真正的公网 IPv6 地址，剩下的就是链路本地地址、局域网地址等。
+            // 这些无效地址的 IPv6 流量通常是有问题的，应该直接拒绝。
+            // 总结: 保留公网 IPv6 连接能力，但拒绝本地/无效的 IPv6 连接。
+            "default_interface_address": "2000::/3",
+            "invert": true
+          }
+        ],
+        "action": "reject"
+      },
+      {
+        // 规则 6: 拒绝特殊端口的流量
+        // 853: DNS over TLS (DoT)
+        // 5353: mDNS (多播 DNS)
+        // 解释: 阻止 DoT 是为了防止应用通过 TLS 加密绕过我们的 DNS 劫持；
+        // 阻止 mDNS 是为了防止本地网络信息泄露。
+        "port": [
+          853,    // DNS over TLS 端口
+          5353    // mDNS 端口
+        ],
+        "action": "reject"
+      },
+      {
+        // 规则 7: 私有 IP 地址直连
+        // ip_is_private: true 匹配所有私有/局域网 IP 地址。
+        // 解释: 局域网内的设备通信 (如打印机、NAS) 不需要走代理，直接连接即可。
+        "ip_is_private": true,
+        "outbound": "DIRECT"
+      },
+      {
+        // 规则 8: NTP 时间同步服务直连
+        // NTP 是时间同步协议，对延迟敏感，通常不需要走代理。
+        // 解释: 而且 NTP 使用 UDP 123 端口，代理可能会导致时间不同步。
+        "protocol": "ntp",
+        "outbound": "DIRECT"
+      },
+      {
+        // 规则 9: 广告域名拦截
+        // 匹配 ads 规则集的域名，全部拒绝连接。
+        // 解释: 在路由层面拦截，比 DNS 拦截更彻底，可以阻止通过 IP 直连的广告。
+        "rule_set": "ads",
+        "action": "reject"
+      },
+      {
+        // 规则 10: FakeIP 范围强制代理
+        // 匹配所有目标 IP 在 198.18.0.0/15 范围内的连接。
+        // 解释: 这些 IP 是之前 DNS 分配的 FakeIP，对应的域名已经被判定为需要代理，
+        // 所以这里必须强制走 proxy 出站。这个规则是 FakeIP 机制的核心。
+        "ip_cidr": "198.18.0.0/15",
+        "outbound": "proxy"
+      },
+      {
+        // 规则 11: 已知需要代理的域名走代理
+        // 再次对域名进行匹配，将需要代理的域名流量发送到 proxy。
+        // 解释: 这是一个兜底和补充规则，即使前面 DNS 没有分配到 fakeip，
+        // 或者有些 IP 不在 198.18.0.0/15 范围，只要域名匹配，也强制走代理。
+        // 注意: 这里包含了 games 和 networktest，因为前面 DNS 配置对它们进行了特殊处理 (evaluate)，
+        // 解析出的是真实 IP，所以需要路由规则来指定出站。
+        "rule_set": [
+          "Google",
+          "fcm",
+          "Android",
+          "proxy",
+          "gfw",
+          "ai",
+          "games",
+          "networktest"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        // 规则 12: 国内域名和 IP 直连
+        // cn: 国内域名
+        // cnip: 国内 IP 段
+        // 解释: 这部分流量直接走 DIRECT，不经过代理，保证国内访问速度。
+        "rule_set": [
+          "cn",       // 中国大陆域名
+          "cnip"      // 中国大陆 IP 地址
+        ],
+        "outbound": "DIRECT"
+      },
+      {
+        // 规则 13: 私有网络直连 (补充)
+        // 和规则 7 类似，通过规则集再次确保私有网络直连。
+        "rule_set": "private",
+        "outbound": "DIRECT"
+      },
+      {
+        // 规则 14: 特定国外服务国内节点直连
+        // 微软中国、Apple 中国、国内游戏平台
+        // 解释: 这些服务在中国有 CDN 节点，直连速度更快。
+        "rule_set": [
+          "microsoft-cn",
+          "apple-cn",
+          "games-cn"
+        ],
+        "outbound": "DIRECT"
+      },
+      {
+        // 规则 15: 拒绝 STUN/DTLS 协议
+        // STUN 用于 WebRTC 获取公网 IP，可能造成 IP 泄漏。
+        // DTLS 是加密的 UDP，常见于 WebRTC。
+        // 解释: 直接丢弃这些数据包，防止泄漏真实 IP。
+        // 总结: 这是隐私保护的重要手段。
+        "protocol": [
+          "stun",  // Session Traversal Utilities for NAT
+          "dtls"   // Datagram Transport Layer Security
+        ],
+        "action": "reject",
+        "method": "drop"
+      },
+      {
+        // 规则 16: 拒绝 WebRTC 相关的端口和域名
+        // 逻辑: "or" 模式，三个条件满足任一就执行。
+        // 解释: WebRTC 可以通过这些端口和域名泄露真实 IP，即使使用了代理。
+        // 拒绝它们是为了防止 IP 泄漏。
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            // 条件 1: UDP 且目标端口是常见 STUN/TURN 端口
+            "network": "udp",
+            "port": [
+              3478,   // STUN
+              5349,   // STUN over TLS
+              5350,   // STUN
+              19302,  // Google STUN
+              10000   // TURN (常见)
+            ]
+          },
+          {
+            // 条件 2: 域名匹配 stun.xxx.xxx 格式
+            "domain_regex": "^stun\\..+"
+          },
+          {
+            // 条件 3: 域名包含关键字 stun 或 turn
+            "domain_keyword": [
+              "stun",
+              "turn"
+            ]
+          }
+        ],
+        "action": "reject",
+        "method": "drop"
+      },
+      {
+        // 规则 17: 路由选项设置
+        // udp_disable_domain_unmapping: 禁用 UDP 域名取消映射。
+        // 解释: 在 TUN 模式下，UDP 数据包可能被映射到域名，禁用后使用 IP 路由，更加稳定。
+        // udp_connect: true 启用 UDP 连接模式 (类似 TCP)，对 QUIC 等协议兼容性更好。
+        // 总结: 这两个选项是优化 UDP 代理体验的。
+        "action": "route-options",
+        "udp_disable_domain_unmapping": true,
+        "udp_connect": true
+      },
+      {
+        // 规则 18: 强制 DNS 解析
+        // 对于域名类型的规则，需要先解析为 IP 才能匹配 IP 规则。
+        // 解释: 确保所有需要域名解析的流量都已完成解析，进入后续的 IP 匹配阶段。
+        "action": "resolve"
+      },
+      {
+        // 规则 19: 兜底规则 - 全部走代理
+        // 如果前面所有规则都没有匹配，最终全部走 proxy。
+        // 总结: 这是"白名单"策略，除了明确指定直连的规则，其余流量默认走代理。
+        // 这种策略更安全，可以防止未知流量泄漏。
+        "outbound": "proxy"
+      }
+    ],
+
+    // ---------- 规则集定义 ----------
+    // 定义从远程下载的规则文件，通常使用 srs (sing-box 二进制格式) 或 json。
+    "rule_set": [
+      {
+        // 类型: remote (从远程 URL 下载)
+        "type": "remote",
+        "tag": "cn",
+        // 规则集文件 URL，这里使用 jsdelivr CDN 加速 GitHub 文件下载。
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cn.srs",
+        // 更新间隔: 每 48 小时重新下载一次规则集。
+        "update_interval": "48h0m0s"
+      },
+      {
+        // cnip 规则集: 中国 IP 地址列表
+        "type": "remote",
+        "tag": "cnip",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cnip.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // private 规则集: 私有网络地址和域名列表
+        "type": "remote",
+        "tag": "private",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/private.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // ads 规则集: 广告过滤列表
+        "type": "remote",
+        "tag": "ads",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ads.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // proxy 规则集: 需要代理的常用域名列表
+        "type": "remote",
+        "tag": "proxy",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/proxy.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // gfw 规则集: GFW List，被封锁的域名列表
+        "type": "remote",
+        "tag": "gfw",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/gfw.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // ai 规则集: AI 服务域名列表 (如 OpenAI, Gemini)
+        "type": "remote",
+        "tag": "ai",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ai.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // games 规则集: 游戏平台和联机服务域名
+        "type": "remote",
+        "tag": "games",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // microsoft-cn 规则集: 微软中国服务域名
+        "type": "remote",
+        "tag": "microsoft-cn",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/microsoft-cn.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // apple-cn 规则集: Apple 中国服务域名
+        "type": "remote",
+        "tag": "apple-cn",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/apple-cn.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // games-cn 规则集: 国内游戏平台
+        "type": "remote",
+        "tag": "games-cn",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games-cn.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // networktest 规则集: 网络连通性检测域名 (如 Windows 网络状态检测)
+        "type": "remote",
+        "tag": "networktest",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/networktest.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // httpDNS 规则集: 应用内置的 HTTP DNS 服务域名
+        "type": "remote",
+        "tag": "httpDNS",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/BlockHttpDNS/BlockHttpDNS.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // DNSreject 规则集: 需要在 DNS 层面拒绝的域名 (主要是广告)
+        "type": "remote",
+        "tag": "DNSreject",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/AdGuardSDNSFilter/AdGuardSDNSFilter.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // Google 规则集: Google 全系列服务域名
+        "type": "remote",
+        "tag": "Google",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/Google/Google.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // fcm 规则集: Firebase Cloud Messaging 推送服务
+        "type": "remote",
+        "tag": "fcm",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/GoogleFCM/GoogleFCM.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // Android 规则集: Android 系统服务域名
+        "type": "remote",
+        "tag": "Android",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/Android/Android.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        // fakeip-filter 规则集: 不适合使用 FakeIP 的域名列表
+        "type": "remote",
+        "tag": "fakeip-filter",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/fakeip-filter.srs",
+        "update_interval": "48h0m0s"
+      }
+    ],
+
+    // ---------- 路由默认配置 ----------
+    // 如果所有路由规则都没有匹配，最终的出站策略
+    "final": "proxy",
+
+    // 自动检测并绑定到默认网络接口
+    // 解释: 在多网卡设备上，自动选择主要的上网接口。
+    "auto_detect_interface": true,
+
+    // 默认的域名解析服务器
+    // 当路由规则中需要解析域名但没有指定服务器时，使用这个。
+    "default_domain_resolver": "ggdns",
+
+    // 默认的 HTTP 客户端
+    // 用于下载规则集文件，引用前面定义的 http_clients 中的 "default"。
+    "default_http_client": "default"
+  },
+
+  // ================================================
+  // 服务配置 (services)
+  // 启用附加服务，例如 API 控制接口
+  // ================================================
+  "services": [
+    {
+      // 类型: api
+      // 启用 REST API 服务，用于外部控制和管理 (如通过 Web 面板切换节点)。
+      "type": "api",
+      "tag": "api",
+
+      // API 监听的地址
+      // 127.0.0.1 表示仅允许本机访问，防止被局域网其他设备控制。
+      "listen": "127.0.0.1",
+
+      // API 监听的端口
+      "listen_port": 9091,
+
+      // CORS (跨域资源共享) 允许的来源
+      // 设置为官方 Web 面板的地址，允许该网页跨域请求 API。
+      // 注意: 如果你使用本地面板，可以设置为 * 或具体的本地地址。
+      "access_control_allow_origin": "https://sing-box-dashboard.sagernet.org",
+
+      // 允许私有网络访问
+      // 解释: 允许从局域网内的其他设备访问 API (需要同时修改 listen 地址)。
+      "access_control_allow_private_network": true,
+
+      // 启用内置的 Web 控制台
+      // 访问 http://127.0.0.1:9091 可以看到一个简单的管理界面。
+      "dashboard": true
+    }
+  ],
+
+  // ================================================
+  // 实验性功能 (experimental)
+  // 尚未稳定但非常有用的功能
+  // ================================================
+  "experimental": {
+    // 缓存文件配置
+    "cache_file": {
+      // 启用缓存文件功能
+      "enabled": true,
+
+      // 缓存文件的路径
+      // cache.db 会保存在 sing-box 运行目录下。
+      // 作用: 存储规则集缓存、FakeIP 映射关系等，重启后无需重新下载。
+      "path": "cache.db",
+
+      // 存储 FakeIP 映射关系到缓存文件
+      // 解释: 启用后，程序重启仍能保留域名到 FakeIP 的映射，
+      // 避免重启后所有 fakeip 连接的域名需要重新解析。
+      // 总结: 开启这个功能可以让重启后的体验更好，连接不会中断。
+      "store_fakeip": true
+    }
+  }
+
+  // ================================================
+  // 全局总结和说明:
+  // 
+  // 1. DNS 架构:
+  //    - hosts_fix: 解决 DoH 自举问题 (用本地映射避免递归查询死锁)。
+  //    - local-dns: 解析国内和私有域名 (快速且获得 CDN 优化结果)。
+  //    - fakeip: 为需要代理的域名分配假 IP (198.18.0.0/15)，实现精确路由。
+  //    - ggdns / backup-dns: 通过代理进行加密 DNS 查询，获取无污染的解析结果。
+  //
+  // 2. 分流逻辑:
+  //    - 国内/私有: DNS -> local-dns -> 路由 -> DIRECT
+  //    - 需代理/被墙: DNS -> fakeip/ggdns -> 路由 -> proxy
+  //    - 广告/恶意: DNS -> reject, 路由 -> reject
+  //    - 游戏/特殊: DNS -> evaluate (ggdns 解析) -> 路由 -> proxy
+  //
+  // 3. 隐私保护:
+  //    - 拒绝 IPv6 DNS 查询和无效 IPv6 流量。
+  //    - 拒绝 SVCB/HTTPS/PTR 查询。
+  //    - 拒绝 QUIC 协议，防止 UDP 泄漏。
+  //    - 拒绝 STUN/DTLS 和 WebRTC 相关流量，防止真实 IP 泄漏。
+  //    - DNS 劫持确保所有 DNS 查询经过内部系统。
+  //
+  // 4. 性能优化:
+  //    - DNS 缓存 (16384 条)。
+  //    - 乐观 DNS (先返回过期缓存，后台更新)。
+  //    - FakeIP 减少真实 DNS 查询。
+  //    - urltest 自动选择最快节点。
+  //    - 缓存文件持久化。
+  //
+  // 5. 疑惑和注意事项:
+  //    - MTU 9000 (巨型帧) 可能在某些网络中导致问题，如果发现部分网站打不开，可以尝试改为 1500。
+  //    - FakeIP 机制依赖路由规则中对 198.18.0.0/15 的处理，如果删除该规则，fakeip 流量会走 final 策略。
+  //    - 规则集需要定期更新 (48小时)，确保列表的时效性。
+  //    - Web 面板的 origin 如果使用本地部署，需要修改 access_control_allow_origin。
+  //    - 本配置采用 "白名单+兜底代理" 策略，国内走直连，其余走代理，比较激进但安全。
+  // ================================================
+}

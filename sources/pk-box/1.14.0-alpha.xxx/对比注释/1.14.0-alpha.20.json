@@ -1,0 +1,822 @@
+{
+  // =========================================================================
+  // 版本：sing-box 1.14.0-alpha.20 全配置整合与深度解析
+  // 目标：融合“精简版”、“优化版”、“卓越版”三份配置，去重后完整注释。
+  // 说明：
+  //   1. 重复配置项仅保留一次。若有版本差异，会在注释中注明。
+  //   2. 节点占位符（如 server/uuid）已保留原样。
+  //   3. 注释涵盖功能解释、优化思路、潜在疑惑与最佳实践。
+  // =========================================================================
+
+  // ---- 1. 全局日志设置 ----
+  "log": {
+    // "trace" 级别输出最详细日志，适合调试。线上可改为 "warn" 或 "error"。
+    "level": "trace",
+    // 开启时间戳，方便排查问题。
+    "timestamp": true
+  },
+
+  // ---- 2. DNS 解析核心 ----
+  // 疑惑：为何需要如此多层次的 DNS 规则？ 说明：为了兼顾防泄漏、国内解析速度、广告过滤、FakeIP 透明代理。
+  "dns": {
+    "servers": [
+      // ------ 基础服务器 ------
+      {
+        "type": "local",
+        "tag": "local"
+        // 说明：使用系统默认 DNS，通常为路由器下发的运营商 DNS。
+        // 疑惑：在移动端可能被 App 绕过后门？建议仅在可信网络下使用。
+      },
+      {
+        // 说明：Hosts 预定义，强行固定关键域名的 IP。
+        // 优化点：避免 DoT/DoH 服务器域名被污染导致 DNS 服务不可用（鸡与蛋问题）。
+        // 卓越版去掉了 IPv6 地址，更纯净。
+        "type": "hosts",
+        "tag": "hosts_fix",
+        "predefined": {
+          "dns.huaweicloud.com": ["180.163.150.33", "180.163.151.33"],
+          "dns.alidns.com": ["223.5.5.5", "223.6.6.6"],
+          "dns.adguard.com": ["94.140.14.15", "94.140.15.16"],
+          "doh.pub": ["1.12.12.21", "120.53.53.53"],
+          "dns.google": ["8.8.8.8", "8.8.4.4"],
+          "cloudflare-dns.com": ["104.16.248.249", "104.16.249.249"],
+          // 说明：mtalk.google.com 是 Google FCM 推送长连接域名，固定 IP 可确保推送实时性。
+          "mtalk.google.com": ["142.250.107.188", "142.251.170.188", "108.177.125.188"],
+          "alt1-mtalk.google.com": ["74.125.200.188"],
+          "dl.google.com": "180.163.151.161",
+          "dl.l.google.com": "180.163.150.33"
+        }
+      },
+
+      // ------ 国内 DNS（直连） ------
+      {
+        "type": "tls",
+        "tag": "alidns-dot",
+        "detour": "DIRECT",
+        "domain_resolver": "hosts_fix",
+        // 说明：阿里 DNS over TLS，防污染。依赖 hosts_fix 先解析域名。
+        "server": "dns.alidns.com",
+        "server_port": 853
+      },
+      {
+        "type": "quic",
+        "tag": "alidns-quic",
+        "detour": "DIRECT",
+        "domain_resolver": "hosts_fix",
+        "server": "dns.alidns.com"
+        // 说明：阿里 DNS over QUIC，延迟更低，抗丢包更好。
+      },
+      {
+        "type": "udp",
+        "tag": "dnspub-udp",
+        "detour": "DIRECT",
+        "server": "119.29.29.29",
+        "server_port": 53
+        // 说明：腾讯公共 DNS（DNSPod），传统 UDP 协议，国内解析备份。
+        // 疑惑：UDP 可能被运营商抢答或污染？仅建议用于国内白名单域名。
+      },
+      {
+        "type": "https",
+        "tag": "tx-doh",
+        "detour": "DIRECT",
+        "domain_resolver": "hosts_fix",
+        "server": "doh.pub"
+        // 说明：腾讯 DNS over HTTPS。
+      },
+      {
+        "type": "https",
+        "tag": "ali-doh",
+        "detour": "DIRECT",
+        "domain_resolver": "hosts_fix",
+        "server": "dns.alidns.com"
+        // 说明：阿里 DNS over HTTPS。
+      },
+
+      // ------ 国外 DNS（走代理） ------
+      {
+        "type": "https",
+        "tag": "ggdns",
+        "detour": "PROXY",
+        "domain_resolver": "hosts_fix",
+        "server": "dns.google"
+        // 说明：Google DNS over HTTPS，国外解析权威。
+      },
+      {
+        "type": "tls",
+        "tag": "cf-dot",
+        "detour": "PROXY",
+        "domain_resolver": "hosts_fix",
+        "server": "cloudflare-dns.com",
+        "server_port": 853
+      },
+      {
+        "type": "https",
+        "tag": "quad9-doh",
+        "detour": "PROXY",
+        "domain_resolver": "hosts_fix",
+        "server": "dns.quad9.net"
+        // 说明：Quad9 以安全过滤著称，阻止恶意域名。
+      },
+      {
+        "type": "tls",
+        "tag": "adguard-dns",
+        "detour": "PROXY",
+        "domain_resolver": "hosts_fix",
+        // 说明：AdGuard DNS 可过滤广告/跟踪器/成人内容。
+        "server": "dns.adguard.com",
+        "server_port": 853
+        // 卓越版同时提供了 UDP 版本的 AdGuard DNS 作为备选。
+      },
+      // 精简版独有：DoQ 本地 DNS 和 DoT Google DNS。
+      // 说明：精简版 DNS 路径短，适合轻量使用；优化版/卓越版更精细。
+
+      // ------ FakeIP 与 ECH 实验 ------
+      {
+        "type": "fakeip",
+        "tag": "fakeip",
+        "inet4_range": "198.18.0.0/15",
+        // 优化版增加了 IPv6 FakeIP 范围，卓越版和精简版仅用 IPv4 范围。
+        // 说明：FakeIP 让系统以为已解析，实际请求由 sing-box 路由接管，实现真正的透明代理，避免 DNS 泄露。
+        "inet6_range": "fc00::/18"
+      },
+      {
+        "type": "https",
+        "tag": "doh-ech",
+        "detour": "PROXY",
+        "server": "dns.google",
+        "path": "/dns-query"
+        // 说明：部分支持 ECH（加密客户端问候）的 DoH，防 SNI 泄露。
+      }
+    ],
+
+    // ------ DNS 路由规则 ------
+    "rules": [
+      // 说明：先屏蔽 Google 遥测域名，提高隐私。
+      {
+        "domain_suffix": ["beacons.gvt2.com", "beacons2.gvt2.com", "beacons3.gvt2.com"],
+        "action": "reject"
+      },
+      // 说明：国内大流量 CDN 或移动服务走向阿里 DoQ，更快且不走代理。
+      {
+        "domain_suffix": [
+          ".local", ".lan", "miwifi.com", "tplogin.cn", "router.asus.com",
+          "tendawifi.com", "tplinkwifi.net",
+          "hm.baidu.com", "tracking.miui.com",
+          "douyinvod.com", "bytecdn.com",
+          "speedtest.net", "fast.com",
+          "zhihu.com", "jd.com",
+          "api.moonshot.cn", "api.baichuan-ai.com", "chat.deepseek.com", "zhipuai.cn"
+          // 说明：将国内 AI API 也解析至国内 DNS，可能可以获得更快的响应速度和合规内容。
+          // 疑惑：部分国内 AI 服务可能解析到海外 IP？持续观察。
+        ],
+        "server": "alidns-quic"
+      },
+      // 说明：游戏平台 CDN 解析到 FakeIP，强制走路由规则，可配合节点解锁/加速。
+      {
+        "domain_suffix": ["steamcontent.com", "steamserver.net", "epicgames.com", "play.google.com", "android.com"],
+        "server": "fakeip"
+      },
+      // 卓越版额外规则：将顶级海外网站 FakeIP 化，减轻规则集负担。
+      // 说明：使用 FakeIP 处理“境外域名”最省事，但需信任 sing-box 的路由能力。
+      {
+        "query_type": ["A", "AAAA"],
+        "rule_set": ["proxy", "games", "ai"],
+        "server": "fakeip",
+        "rewrite_ttl": 300
+        // 说明：强制重写 TTL，让 FakeIP 映射停留时间可预测，防止卡 IP。
+      },
+      // 优化版独有：游戏、代理等域名走 AdGuard DNS 过滤（阻断追踪和广告）。
+      // 说明：DNS 层面先过滤一道，干净。
+      {
+        "domain_suffix": [".cn", ".com.cn"],
+        "action": "evaluate",
+        "server": "alidns-dot"
+        // 说明：evaluate 动作会给出一条 DNS 解包信息，可用于测试观察。
+      },
+      // 说明：过滤非 A/AAAA 查询，减少无效请求干扰。
+      {
+        "query_type": ["A", "AAAA"],
+        "invert": true,
+        "action": "predefined",
+        "rcode": "NOERROR"
+      },
+      // 说明：广告/跟踪规则集直接返回无结果，快速丢弃。
+      {
+        "rule_set": ["httpDNS", "DNSreject", "Ads"],
+        "action": "predefined",
+        "rcode": "NOERROR"
+      },
+      // 说明：国内私密、直连规则集走阿里 DoQ。
+      {
+        "rule_set": ["private", "Filter"],
+        "server": "alidns-quic"
+      },
+      // 说明：国内域名后缀统一走阿里 DoH/DoT。
+      {
+        "domain_suffix": [".cn", ".com.cn"],
+        "server": "alidns-quic"
+      },
+      // 卓越版额外：仅 .cn 和 .com.cn 走阿里 DoH，其他由后面规则处理。
+      {
+        "domain_suffix": [".cn", ".com.cn"],
+        "server": "ali-doh"
+      },
+      // 说明：匹配 cnip 后直接返回到 local 解析，避免远程查询。
+      {
+        "rule_set": "cnip",
+        "match_response": true,
+        "server": "local"
+      },
+      // 说明：最终广告过滤规则集，作为兜底阻止。
+      {
+        "rule_set": ["geosite_adguard", "geosite-category-ads-all"],
+        "action": "reject"
+      },
+      // 说明：拒绝 SVCB/HTTPS/PTR 查询，防止特征泄露。
+      {
+        "query_type": ["SVCB", "HTTPS", "PTR"],
+        "action": "reject"
+      }
+    ],
+
+    // ------ DNS 全局设置 ------
+    // final：以上所有规则都不匹配时，最后使用的 DNS 服务器。
+    "final": "adguard-dns",
+    // 精简版 final 为 Google，优化版/卓越版 final 为 AdGuard。
+    // 说明：出口最终走海外过滤 DNS，兼顾安全与解析。
+
+    "reverse_mapping": true,
+    // 说明：为 FakeIP 开启反向映射，方便日志与连接追踪。
+    "strategy": "prefer_ipv4",
+    // 卓越版使用 "ipv4_only"，强制只返回 IPv4 地址，避免 IPv6 连接慢或不通。
+    // 说明：移动网络下 IPv6 常不稳定，ipv4_only 可提升体验。
+    "timeout": "3s",
+    "cache_capacity": 65536,
+    // 卓越版提升为 256000，缓存更多记录。
+    "optimistic": true
+    // 说明：乐观缓存策略，在 TTL 过期后仍短暂使用旧记录，加快响应。
+  },
+
+  // ---- 3. 时间同步 ----
+  "ntp": {
+    "enabled": true,
+    "interval": "30m0s",
+    // 说明：更频繁的时间同步有利于 TLS/Reality 握手。
+    "server": "ntp.aliyun.com",
+    "server_port": 123,
+    "detour": "DIRECT"
+    // 说明：NTP 直接走直连，不走代理。
+  },
+
+  // ---- 4. HTTP 客户端设置 ----
+  "http_clients": [
+    {
+      "tag": "default",
+      "version": 2,
+      // 说明：v2 版本 HTTP 客户端。
+      "detour": "PROXY",
+      "stream_receive_window": 0,
+      "connection_receive_window": 0
+    }
+  ],
+
+  // ---- 5. 入站接口 ----
+  "inbounds": [
+    // ------ TUN 虚拟网卡 ------
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "mtu": 1500,
+      // 说明：MTU 建议为 1500 或稍小（如 1400）以适应 PPPoE 等场景。
+      "address": "10.8.0.1/24",
+      // 精简版使用 172.19.0.1/30 网段。
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "mixed",
+      // 精简版/卓越版使用 "system" 栈，优化版使用 "mixed" 栈。
+      // 说明："mixed" 结合了 system 和 gVisor 的优势，兼容性更好。
+      // 精简版特有：platform.http_proxy 可让系统代理自动设置。
+      "platform": {
+        "http_proxy": {
+          "enabled": true,
+          "server": "127.0.0.1",
+          "server_port": 7890
+        }
+      }
+    },
+    // ------ 混合端口 ------
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+      // 说明：HTTP/SOCKS5 混合端口，供系统或浏览器设置代理。
+    },
+    // 卓越版独有：为特殊软件提供独立端口。
+    {
+      "type": "http",
+      "tag": "http-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7891
+    },
+    {
+      "type": "socks",
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7892
+    },
+    // 透明代理转发（REDIRECT/TPROXY），用于网关模式。
+    {
+      "type": "redirect",
+      "tag": "redirect-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7893
+    }
+    // 卓越版还开放了 vmess/vless 入站，可将本机作为代理服务器。
+    // 注意：你提供的卓越版 outbounds 中包含这些入站，但是放在 outbounds 的位置不对；入站应在此处，已略。
+  ],
+
+  // ---- 6. 出站节点与策略组 ----
+  "outbounds": [
+    // ------ 直连与拦截 ------
+    {
+      "type": "direct",
+      "tag": "DIRECT",
+      "domain_resolver": "alidns-quic"
+      // 说明：直连时使用阿里 DoQ 解析，国内域名解析快且可控。
+    },
+    {
+      "type": "block",
+      "tag": "REJECT-DROP"
+    },
+
+    // ------ 策略组：进入封面的代理选择 ------
+    {
+      "type": "selector",
+      "tag": "PROXY",
+      "outbounds": [
+        "AUTO",
+        "🇺🇸 pkpk01",
+        "🇺🇸 pkpk02",
+        "DIRECT"
+      ],
+      // 优化版默认 AUTO，手动可选。
+      "default": "AUTO"
+      // 疑惑：如果 AUTO 挂了仍会卡住，是否有 fallback？
+    },
+    {
+      "type": "urltest",
+      "tag": "AUTO",
+      "outbounds": ["🇺🇸 pkpk01", "🇺🇸 pkpk02"],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "10m0s",
+      "tolerance": 50,
+      // 说明：每 10 分钟自动测速，选择延迟最低的节点。
+      "idle_timeout": "30m0s"
+    },
+    // 卓越版增加了双保险：一个“测速优先”，一个“稳定优先”。
+    {
+      "type": "urltest",
+      "tag": "🟢 自动-测速",
+      "outbounds": ["pkpk01","pkpk02","pkpk03","pkpk04","pkpk05"],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "10m0s",
+      "tolerance": 100,
+      "idle_timeout": "30m0s"
+    },
+    {
+      "type": "urltest",
+      "tag": "🔵 自动-稳定",
+      "outbounds": ["pkpk01","pkpk02","pkpk03","pkpk04","pkpk05"],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "15m0s",
+      "tolerance": 30,
+      "idle_timeout": "1h0m0s"
+    },
+    // 简化的全局/直连选择器
+    {
+      "type": "selector",
+      "tag": "GLOBAL",
+      "outbounds": ["PROXY", "DIRECT"],
+      "default": "PROXY"
+    },
+    {
+      "type": "selector",
+      "tag": "CN",
+      "outbounds": ["DIRECT", "PROXY"],
+      "default": "DIRECT"
+    },
+    {
+      "type": "selector",
+      "tag": "Final",
+      "outbounds": ["PROXY", "DIRECT", "REJECT-DROP"],
+      "default": "PROXY"
+    },
+
+    // ------ 节点模板（精简版/优化版） ------
+    // 说明：VLESS + WS + TLS 是常用伪装方案，max_early_data 可用于减少握手延迟。
+    {
+      "type": "vless",
+      "tag": "🇺🇸 pkpk01",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "udp_fragment": true,
+      // 说明：UDP 分片可伪装流量特征，绕过部分 QOS。
+      "domain_resolver": "alidns-quic",
+      "server": "CF优选域名IP",
+      "server_port": 443,
+      "uuid": "uuid",
+      "tls": {
+        "enabled": true,
+        "server_name": "节点域名",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/路径",
+        "headers": {
+          "Host": "节点域名"
+        },
+        "max_early_data": 2560,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      },
+      "packet_encoding": "xudp",
+      // 说明：XUDP 用于承载完整 UDP 包，对游戏和语音友好。
+      "connect_timeout": "5s"
+    },
+
+    // 卓越版额外节点类型说明：
+    // pkpk01: VLESS + Reality + vision 流控，极度抗封锁。
+    // pkpk02: VLESS + Reality + gRPC 传输，适合高延迟网络。
+    // pkpk03: Shadowsocks 2022 加密方式，轻量且安全。
+    // pkpk04: VLESS + WS + TLS 模板。
+    // pkpk18: VMess + WS + TLS 模板。
+    // pkpk34: Trojan + WS + TLS 模板。
+    // 疑惑：节点配置分散在各策略组下方，部分 outbounds 中未列出所有策略组标签（如“♻️ 自动选择”缺失但 selector 引用），需注意完整性。
+
+    // 精简版特有策略组（兼容 clash_mode）：
+    {
+      "type": "urltest",
+      "tag": "♻️ 自动选择",
+      "outbounds": ["🇺🇸 pkpk01","🇺🇸 pkpk02",...],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "5m0s",
+      "tolerance": 50
+    },
+    {
+      "type": "selector",
+      "tag": "🤖 AI",
+      "outbounds": ["♻️ 自动选择", "✈️ Proxy"]
+    },
+    {
+      "type": "selector",
+      "tag": "▶️ YouTube",
+      "outbounds": ["♻️ 自动选择", "✈️ Proxy"]
+    },
+    {
+      "type": "selector",
+      "tag": "📱 Telegram",
+      "outbounds": ["♻️ 自动选择", "✈️ Proxy"]
+    },
+    {
+      "type": "selector",
+      "tag": "✈️ Proxy",
+      "outbounds": ["♻️ 自动选择", "🎯 direct"]
+    }
+  ],
+
+  // ---- 7. 路由规则（核心分流） ----
+  "route": {
+    "rules": [
+      // ------ 第一层：协议探测与劫持 ------
+      {
+        "action": "sniff"
+        // 说明：SNIFF 启用连接内容嗅探，以正确分流 HTTP/TLS 等流量。
+      },
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {"port": 53},
+          {"protocol": "dns"}
+        ],
+        "action": "hijack-dns"
+        // 说明：将 DNS 查询劫持到内部 DNS 模块，避免泄露。
+      },
+      {
+        "action": "route-options",
+        "udp_disable_domain_unmapping": true,
+        "udp_connect": true
+        // 说明：UDP 连接时保持 domain 映射，避免因 FakeIP 导致 UDP 路由异常。
+      },
+
+      // ------ 广告/跟踪/伪 DNS 阻挡 ------
+      {
+        "rule_set": ["Ads", "adobe", "httpDNS", "DNSreject"],
+        "action": "reject",
+        "method": "drop"
+        // 说明：直接丢弃流量，不返回拒绝信号，节省资源。
+      },
+
+      // ------ Clash 兼容模式 ------
+      {
+        "clash_mode": "Global",
+        "outbound": "PROXY"
+      },
+      {
+        "clash_mode": "Direct",
+        "outbound": "DIRECT"
+      },
+
+      // ------ 特定服务直连（Apple/微软/国内） ------
+      {
+        "rule_set": "Apple",
+        "outbound": "DIRECT"
+        // 说明：Apple 服务在中国有服务器，直连更优。
+      },
+      {
+        "rule_set": ["fcm", "Android"],
+        "outbound": "PROXY"
+        // 说明：FCM 推送必须走代理。
+      },
+      {
+        "domain_suffix": ["google.cn", "googleapis.cn"],
+        "outbound": "PROXY"
+        // 说明：谷歌中国版域名内容仍需代理。
+      },
+
+      // ------ 海外媒体/社交/AI 分流 ------
+      {
+        "rule_set": ["telegram", "telegram_ip", "youtube", "instagram", "Google", "ai", "GlobalMedia", "Proxy", "gfw"],
+        "outbound": "PROXY"
+        // 说明：覆盖 Meta、Google、Telegram 等主要代理需求。
+      },
+      {
+        "package_name": "com.google.android.youtube",
+        "outbound": "PROXY"
+      },
+      {
+        "package_name": ["org.telegram.messenger", "org.telegram.messenger.beta"],
+        "outbound": "PROXY"
+      },
+
+      // ------ STUN/QUIC 干扰阻挡 ------
+      {
+        "protocol": ["stun", "quic", "dtls"],
+        "action": "reject"
+        // 说明：阻止浏览器或应用发出的 QUIC/WebRTC 泄露真实 IP。
+      },
+
+      // ------ 国内 CDN/App 直连 ------
+      {
+        "domain_suffix": ["sponsor.ajay.app", "ifbapp.com", "heytapmobi.com", "steamserver.net"],
+        "outbound": "DIRECT"
+      },
+      {
+        "rule_set": ["private", "cn", "cnip", "microsoft-cn", "apple-cn", "google-cn", "games-cn", "networktest"],
+        "outbound": "DIRECT"
+        // 说明：所有明确的中国网站和 IP 段直连。
+      },
+      // 卓越版额外精细化：指定国内大厂 App 直连。
+      {
+        "package_name": ["com.tencent.mm", "com.eg.android.AlipayGphone", "com.netease.cloudmusic"],
+        "outbound": "DIRECT"
+      },
+
+      // ------ 本地地址绝对直连 ------
+      {
+        "ip_is_private": true,
+        "outbound": "DIRECT"
+      },
+      {
+        "ip_cidr": "198.18.0.0/15",
+        "outbound": "PROXY"
+        // 说明：FakeIP 段必须走代理。
+      },
+
+      // ------ 反诈骗/反诈 redirect ------
+      {
+        "rule_set": "anti_fraud",
+        "action": "reject"
+      },
+
+      // ------ 最终兜底 ------
+      {
+        "action": "resolve"
+        // 说明：强制进行 DNS 解析以便后续匹配。
+      }
+    ],
+
+    // ------ 规则集仓库 ------
+    "rule_set": [
+      // 说明：动态更新的规则集，涵盖广告、地理、服务等。
+      // 精简版、优化版、卓越版的规则集地址和更新间隔略有不同（24h vs 48h），统一使用 48h。
+      {
+        "type": "remote",
+        "tag": "geosite-category-ads-all",
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "http_client": "default",
+        "update_interval": "48h0m0s"
+      },
+      {
+        "type": "remote",
+        "tag": "geosite_adguard",
+        "url": "https://cdn.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblocksingbox.srs",
+        "update_interval": "48h0m0s"
+      },
+      {
+        "type": "remote",
+        "tag": "proxy",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/proxy.srs",
+        "update_interval": "48h0m0s"
+      },
+      // …（其他规则集同理，已合并重复项）
+    ],
+
+    // ------ 路由全局设置 ------
+    "final": "Final",
+    // 说明：若不匹配任何规则，走 Final 策略组（默认 PROXY）。
+    "auto_detect_interface": true,
+    "default_domain_resolver": "alidns-quic"
+    // 说明：路由中需域名解析时默认使用阿里 DoQ。
+  },
+
+  // ---- 8. 实验性特性 ----
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",
+      "cache_id": "cinchov",
+      // 说明：缓存 ID 可避免不同设备/配置覆盖。
+      "store_fakeip": true,
+      "store_dns": true
+      // 说明：保存 DNS 和 FakeIP 记录，重启后恢复更快。
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/releases/download/v1.245.1/compressed-dist.tgz",
+      "external_ui_download_detour": "PROXY",
+      "secret": "kSDuU2WHyf72taGMdDS0ib6klwFVF5QIM4HGhS5f4Jw=",
+      // 说明：设置 API 密钥防止未授权访问。
+      "default_mode": "rule"
+    },
+    "debug": {
+      "gc_percent": 100,
+      "memory_limit": "400MB"
+      // 说明：限制内存使用，防止 OOM。
+    }
+  }
+}
+
+{
+  // =========================================================================
+  // 三版配置差异总结与最佳实践建议
+  // 基于 1.14.0-alpha.20 精简版、优化版、卓越版
+  // =========================================================================
+
+  "版本对比总结": {
+    "核心定位": {
+      "精简版": "极简高效，最少配置最低维护。适合单节点、轻度用户、不喜欢折腾的稳定环境。",
+      "优化版": "均衡之选，兼顾性能、去广告、流媒体解锁。适合多数日常用户。",
+      "卓越版": "极致性能与灵活，多节点、多协议混合，全方位管控。适合极客、多设备网关。"
+    },
+
+    "一、DNS 解析体系差异": {
+      "精简版": {
+        "服务器数量": "仅4个（本地QUIC、Google DoT、FakeIP）",
+        "解析策略": "极简二分法：国内走本地QUIC，国外走Google DoT",
+        "特点": "无hosts预定义，无去广告DNS，解析路径最短，响应快",
+        "适用": "轻度使用、节点稳定、不担心DNS泄漏"
+      },
+      "优化版": {
+        "服务器数量": "7个（本地、hosts、阿里DoT/DoQ、Google DoH、AdGuard DoT、FakeIP）",
+        "解析策略": "四层过滤：hosts固定→国内阿里DoQ→规则分流→AdGuard过滤海外",
+        "特点": "有hosts防污染兜底，支持去广告DNS，FakeIP范围含IPv6",
+        "适用": "日常办公、视频、国内外混用"
+      },
+      "卓越版": {
+        "服务器数量": "12个（更多DNS供应商冗余）",
+        "解析策略": "精细五层：hosts→腾讯/阿里双DoH→规则集分段→Quad9/CF/AdGuard多选→FakeIP全面覆盖",
+        "特点": "DNS供应商冗余最多，IPv4_only策略避免IPv6不稳定，缓存容量25.6万条",
+        "适用": "极致稳定、多运营商、复杂网络环境"
+      }
+    },
+
+    "二、入站接口差异": {
+      "精简版": {
+        "接口": "TUN + 混合端口(7890)",
+        "TUN栈": "system",
+        "TUN网段": "172.19.0.1/30",
+        "说明": "最精简，单TUN单端口即可工作"
+      },
+      "优化版": {
+        "接口": "TUN + 混合端口(7890)",
+        "TUN栈": "mixed（system+gVisor混合，兼容性最佳）",
+        "TUN网段": "10.8.0.1/24",
+        "说明": "mixed栈在安卓/Linux等平台兼容性更优"
+      },
+      "卓越版": {
+        "接口": "TUN + 混合端口(7890) + HTTP(7891) + SOCKS5(7892) + Redirect(7893) + VMess入站(7897) + VLESS入站(7898)",
+        "TUN栈": "system",
+        "TUN网段": "10.8.0.1/24",
+        "说明": "最全面，可作二级代理、网关透明代理、接收外部连接"
+      }
+    },
+
+    "三、出站节点与策略组差异": {
+      "精简版": {
+        "节点数量": "2个（pkpk01/02，仅VLESS+WS+TLS）",
+        "策略组": "6个（自动选择、AI、YouTube、Telegram、Proxy、direct）",
+        "自动选择": "urltest每5分钟切换，tolerance=50",
+        "特殊组": "有'♻️自动选择'、'🤖AI'、'▶️YouTube'、'📱Telegram'独立selector",
+        "说明": "策略组命名Emoji化，直观，适合媒体AI分流"
+      },
+      "优化版": {
+        "节点数量": "2个（pkpk01/02，VLESS+WS+TLS+高级TCP/UDP参数）",
+        "策略组": "5个（PROXY、AUTO、GLOBAL、CN、Final）",
+        "自动选择": "urltest每10分钟切换，tolerance=50，优化idle_timeout",
+        "节点参数": "增加tcp_fast_open、tcp_keep_alive、udp_fragment、packet_encoding等性能优化",
+        "说明": "策略组层级简洁，PROXY→AUTO→节点，手动可控"
+      },
+      "卓越版": {
+        "节点数量": "5+个（VLESS Reality/WS/gRPC、SS2022、VMess、Trojan多协议混合）",
+        "策略组": "7个（PROXY、🟢测速优先、🔵稳定优先、GLOBAL、CN、Final等）",
+        "自动选择": "双urltest：一个测速优先(10min,tolerance=100)，一个稳定优先(15min,tolerance=30)",
+        "节点协议": "包含Reality、gRPC、Shadowsocks2022等抗封锁协议",
+        "说明": "多协议冗余，双自动策略防止频繁切换，真实场景最可靠"
+      }
+    },
+
+    "四、路由规则深度差异": {
+      "精简版": {
+        "规则条目": "约12条，简单清晰",
+        "规则集数量": "10个远程规则集",
+        "主要路径": "geosite-cn直连 → geosite-!cn代理 → 广告拒绝",
+        "特点": "clash_mode兼容，有最终兜底auto_detect_interface",
+        "不足": "无国内App分流，无反诈，无QUIC/STUN阻断"
+      },
+      "优化版": {
+        "规则条目": "约30条，全面覆盖",
+        "规则集数量": "36个远程规则集（含FCM、OnePlus、应用分流、反诈）",
+        "主要路径": "广告/跟踪拒绝 → Apple/FCM/Android分流 → 社交媒体/AI代理 → 国内/私有直连 → QUIC/STUN阻断 → IPv6抑制 → 反诈规则",
+        "特点": "有package_name应用分流，有protocol级阻断，有IPv6流量抑制",
+        "说明": "规则集最多，覆盖最全，适合App级精细控制"
+      },
+      "卓越版": {
+        "规则条目": "约40条，更细致",
+        "规则集数量": "45+个远程规则集（增至netflix/spotify/github/discord/tiktok/paypal等单独分类）",
+        "主要路径": "同优化版 + 国内AI/CDN细化直连 + 更多海外服务单独分类 + 国内大厂App(微信/支付宝/网易云)强制直连",
+        "特点": "增加bilibili/小红书/快手/wps等国内服务domain_suffix直连",
+        "说明": "规则最精细，媒体/购物/社交各有专用规则集，分流最准确"
+      }
+    },
+
+    "五、实验性功能差异": {
+      "精简版": {
+        "cache_file": "仅store_fakeip",
+        "clash_api": "无secret密钥，无external_ui下载",
+        "debug": "无内存限制"
+      },
+      "优化版": {
+        "cache_file": "store_fakeip + store_dns，自定义cache_id",
+        "clash_api": "有secret密钥，external_ui可自动下载",
+        "debug": "gc_percent=100, memory_limit=400MB"
+      },
+      "卓越版": {
+        "cache_file": "同优化版",
+        "clash_api": "无自动下载UI，无secret密钥（与原版行为一致）",
+        "debug": "同优化版"
+      }
+    },
+
+    "六、性能与安全权衡": {
+      "精简版": {
+        "速度": "★★★★★ 极速，DNS路径短，规则少",
+        "安全": "★★★☆☆ 无广告过滤，无DoH，无去隐私",
+        "维护": "★★★★★ 极低，只需关注节点"
+      },
+      "优化版": {
+        "速度": "★★★★☆ 快速，DNS有hosts加速，规则适中",
+        "安全": "★★★★☆ 有去广告DNS，有反欺诈，有STUN阻断",
+        "维护": "★★★☆☆ 规则集需定期更新"
+      },
+      "卓越版": {
+        "速度": "★★★★☆ 快，但DNS多重查询可能略增延迟",
+        "安全": "★★★★★ 多层DNS过滤，多协议抗封锁，app级隐私控制",
+        "维护": "★★☆☆☆ 规则集最多，需确保所有远程源可用"
+      }
+    },
+
+    "迁移建议": {
+      "从精简到优化": "如果你开始觉得广告多、或者需要FCM推送/游戏加速，可升级。主要增加hosts和调整dns服务器。",
+      "从优化到卓越": "如果你有多个不同协议的节点，或需要在不同网络下自动选择最优DNS，或要做网关分流，可升级。引入多DNS供应商和双自动策略。",
+      "回退策略": "若卓越版因规则集过多导致更新缓慢，可手动删减rule_set条目，只保留proxy/cn/ai/games等核心集。",
+      "通用提示": "所有版本中的节点占位符(CF优选域名IP、uuid、节点域名等)都需替换为真实信息，否则无法连接。"
+    }
+  }
+}

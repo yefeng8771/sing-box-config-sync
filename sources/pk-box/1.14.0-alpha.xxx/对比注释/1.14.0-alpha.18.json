@@ -1,0 +1,1271 @@
+{
+  // ==================================================
+  // 全局注释与说明
+  // ==================================================
+  // 本 JSON 配置基于 sing-box 1.14.0-alpha.18 内核，合并了优化版、稳定版、强化版、精简版四个版本。
+  // 所有版本的共同配置将只出现一次，并在关键位置用注释标出不同版本的差异。
+  //
+  // 核心版本差异概览：
+  // - 优化版: 注重国内网站(尤其是AI网站)直连速度，使用阿里DNS系列服务器，DNS和路由规则细致。
+  // - 稳定版: 在优化版基础上微调，去掉了一些实验性配置(如ECH)，节点使用自动测速，策略偏向保守。
+  // - 强化版: 在稳定版基础上大幅增加规则集，增强去广告、隐私保护和代理分流，内存和性能优化更激进。
+  // - 精简版: 配置极简，追求低内存占用和快速启动，只保留最核心的分流和代理功能，适合低配设备。
+  //
+  // 疑惑解答:
+  // 1. "dns"部分的"predefined"字段: 用于预定义主机名(hosts)，将特定域名解析为指定的IP，常用于绕过DNS污染或加速特定服务。
+  // 2. "detour"字段: 指连接此服务器应使用的出站(outbound)标签。设置为"DIRECT"即直连，"PROXY"即通过代理。
+  // 3. "clash_mode"字段: 这是sing-box为兼容Clash模式而设计的，允许通过UI快速切换"规则"、"全局"、"直连"模式。
+  // 4. "rule_set"的"format"字段: "binary"(.srs)格式比"source"(json)加载更快，内存占用更少。精简版为节省空间未指定，默认下载source格式。
+  // 5. "experimental"部分: "cache_file"会缓存DNS、规则集等数据，显著加快重启后的启动速度。"clash_api"提供与Clash兼容的API，用于连接Metacubexd等Web面板。
+  // 6. "domain_resolver"字段: 指定用于解析该服务器自身域名的DNS服务器标签，常用于解决循环解析问题。例如，"hosts_fix"预定义了国内DNS服务器的IP，使系统在无DNS时也能解析它们。
+
+  // ==================================================
+  // 日志配置 (所有版本相同，精简版级别为"warn")
+  // ==================================================
+  "log": {
+    "level": "trace", // 日志级别: trace(最详细), debug, info, warn, error, fatal。精简版为"warn"。
+    "timestamp": true // 为每条日志添加时间戳
+  },
+
+  // ==================================================
+  // NTP 时间同步 (优化版/稳定版/强化版相同，精简版使用 time.apple.com)
+  // ==================================================
+  "ntp": {
+    "enabled": true,
+    "server": "ntp.aliyun.com", // 精简版使用 "time.apple.com"
+    "server_port": 123,
+    "interval": "30m", // 同步间隔。稳定版/强化版为 "30m0s"，功能一致。
+    "detour": "DIRECT" // 强制NTP流量直连，避免因代理导致时间不准。
+  },
+
+  // ==================================================
+  // DNS 服务器及规则
+  // ==================================================
+  "dns": {
+    "servers": [
+      // 基础DNS服务器 (所有版本均有)
+      {
+        "tag": "local",
+        "type": "local" // 使用系统本地DNS，通常为路由器分配的DNS。
+      },
+      {
+        "tag": "hosts_fix",
+        "type": "hosts",
+        "predefined": { // 预定义HOSTS，静态解析，防止DNS污染或劫持。
+          "dns.huaweicloud.com": ["180.163.150.33", "180.163.151.33"],
+          "dns.alidns.com": ["223.5.5.5", "223.6.6.6"],
+          "doh.pub": ["1.12.12.21", "120.53.53.53"],
+          "dns.google": ["8.8.8.8", "8.8.4.4"],
+          "cloudflare-dns.com": ["104.16.248.249", "104.16.249.249"],
+          "mtalk.google.com": ["142.250.107.188", "142.251.170.188", "108.177.125.188"],
+          "alt1-mtalk.google.com": ["2607:f8b0:4023:1c05::bc", "74.125.200.188"],
+          "dl.google.com": ["180.163.151.161"],
+          "dl.l.google.com": ["180.163.150.33"]
+          // 强化版增加了 "dns.adguard.com": [...] 的解析。
+        }
+      },
+      // 国内高速DNS (阿里DNS over TLS) (优化版/稳定版/强化版共有，精简版无)
+      {
+        "tag": "alidns-dot",
+        "type": "tls",
+        "server": "dns.alidns.com",
+        "server_port": 853,
+        "domain_resolver": "hosts_fix", // 使用预定义hosts来解析"dns.alidns.com"的IP。
+        "detour": "DIRECT" // 通过直连出站连接。
+      },
+      // 国内高速DNS (阿里DNS over QUIC) (优化版/稳定版/强化版共有，精简版使用标准QUIC直连223.5.5.5)
+      {
+        "tag": "alidns-quic",
+        "type": "quic",
+        "server": "dns.alidns.com",
+        "domain_resolver": "hosts_fix",
+        "detour": "DIRECT"
+      },
+      // 海外代理DNS (Google DNS over HTTPS) (优化版/稳定版/强化版共有，精简版类似但tag为"google", type为"tls")
+      {
+        "tag": "ggdns",
+        "type": "https",
+        "server": "dns.google",
+        "domain_resolver": "hosts_fix",
+        "detour": "PROXY" // 强制通过代理连接，确保拿到无污染的海外DNS结果。
+      },
+      // 实验性ECH DNS (仅优化版)
+      // ECH (Encrypted Client Hello) 是一种TLS隐私增强技术。
+      {
+        "tag": "doh-ech",
+        "type": "https",
+        "server": "dns.google",
+        "path": "/dns-query",
+        "detour": "PROXY"
+      },
+      // FakeDNS/FakeIP (所有版本共有)
+      // 对匹配的域名立即返回一个虚拟IP，延迟连接，待真实请求发出后再解析真实IP。可优化国内有CDN的网站访问速度。
+      {
+        "tag": "fakeip",
+        "type": "fakeip",
+        "inet4_range": "198.18.0.0/15" // 强化版还配置了 "inet6_range": "fc00::/18"
+      },
+      // 广告过滤DNS (仅强化版)
+      {
+        "tag": "adguard-dns",
+        "type": "tls",
+        "detour": "PROXY",
+        "domain_resolver": "hosts_fix",
+        "server": "dns.adguard.com", // 使用AdGuard的公共DNS，可过滤广告和跟踪器。
+        "server_port": 853
+      }
+    ],
+
+    "rules": [
+      // === 所有版本共有规则 ===
+      {
+        // 广告和跟踪器域名，直接拒绝解析 (稳定版和强化版也将此规则放在靠后位置)
+        "rule_set": ["geosite_adguard", "geosite-category-ads-all"],
+        "action": "reject"
+      },
+      {
+        // 拒绝不必要的DNS查询类型，减少特征和泄露。
+        "query_type": ["SVCB", "HTTPS", "PTR"],
+        "action": "reject"
+      },
+
+      // === 优化版/稳定版/强化版共有规则 ===
+      {
+        // 本地局域网及智能设备管理域名，使用本地DNS解析。
+        "domain_suffix": [
+          ".local", ".lan",
+          "miwifi.com", "tplogin.cn", "router.asus.com", "tendawifi.com", "tplinkwifi.net"
+        ],
+        "server": "local" // 或 "alidns-quic"，优化版在第一个大规则组中包含它们并指向"alidns-quic"。
+      },
+      // 优化版特有的详细规则: 将大量国内AI和内容平台域名明确指向阿里DNS，保证速度和稳定性。
+      // 如: "api.deepseek.com", "www.bilibili.com"等。
+      {
+        "domain_suffix": [
+          // ... 优化版/稳定版/强化版共享的大量国内域名，如:
+          "hm.baidu.com", "tracking.miui.com",
+          "douyinvod.com", "douyincdn.com", "ixigua.com", "pstatp.com", "bytecdn.com", "volccdn.com",
+          "speedtest.net", "fast.com",
+          "zhihu.com", "zhimg.com", "jd.com", "360buyimg.com",
+          "xfyun.cn", "dashscope.aliyuncs.com", "api.moonshot.cn", "api.baichuan-ai.com",
+          "api.minimax.chat", "api.sensenova.cn", "api.iflytek.com", "xinghuo.xfyun.cn",
+          "chatglm.cn", "bigmodel.cn", "volces.com", "lingyiwanwu.com", "stepfun.com", "zhipuai.cn",
+          "chat.deepseek.com", "www.deepseek.com", "api.bilibili.com", "www.bilibili.com",
+          "market.xiaomi.com"
+        ],
+        "server": "alidns-quic"
+      },
+      // 优化版将 ".cn" 和 ".com.cn" 域名先使用evaluate规则交给alidns-dot评估
+      {
+        "domain_suffix": [".cn", ".com.cn"],
+        "action": "evaluate", // evaluate会同时查询路由表和DNS规则，不立即决定。
+        "server": "alidns-dot"
+      },
+      {
+        "domain_suffix": [".cn", ".com.cn"],
+        "server": "alidns-quic" // 如果evaluate未匹配，则由alidns-quic处理。稳定版/强化版无evaluate，直接使用此规则。
+      },
+      // Steam缓存域名，使用本地DNS。
+      {
+        "domain_suffix": "lancache.steamcontent.com",
+        "server": "local"
+      },
+      // 游戏平台和Google服务，使用FakeIP。
+      {
+        "domain_suffix": [
+          "steamcontent.com", "steamserver.net",
+          "epicgames.com", "gog.com", "battle.net", "blizzard.com", "origin.com", "ea.com", "ubisoft.com", "rockstargames.com",
+          "play.google.com", "ggpht.com", "googleusercontent.com", "android.com",
+          "app-measurement.com",
+          "firebaselogging.googleapis.com", "firebaselogging-pa.googleapis.com",
+          "beacons.gvt2.com", "beacons2.gvt2.com", "beacons3.gvt2.com"
+        ],
+        "server": "fakeip"
+      },
+      // 代理、游戏、AI类域名使用FakeIP并进行客户端子网重写 (优化版独有)
+      {
+        "rule_set": ["proxy", "games", "ai"],
+        "query_type": ["A", "AAAA"],
+        "server": "fakeip",
+        "rewrite_ttl": 300,
+        "client_subnet": "119.134.100.0/24" // 向DNS服务器报告一个假的客户端子网，可能获取更优的CDN节点。
+      },
+      // 稳定版的对应规则，没有client_subnet。
+      {
+        "query_type": ["A", "AAAA"],
+        "rule_set": ["proxy", "games", "ai"],
+        "server": "fakeip",
+        "rewrite_ttl": 300
+      },
+      // 强化版: 关联proxy/games/ai的A/AAAA查询先通过adguard-dns过滤，再走fakeip。
+      {
+        "query_type": ["A", "AAAA"],
+        "rule_set": ["proxy", "games", "ai"],
+        "server": "adguard-dns"
+      },
+      {
+        "query_type": ["A", "AAAA"],
+        "rule_set": ["proxy", "games", "ai"],
+        "server": "fakeip",
+        "rewrite_ttl": 300
+      },
+      // 优化版: 对应节点域名的查询使用ECH DNS。
+      {
+        "domain_suffix": ["节点域名"], // 这是占位符，使用者需替换为自己的节点域名。
+        "server": "doh-ech"
+      },
+      // 匹配所有国内IP的响应，路由到本地DNS，确保准确性。
+      {
+        "match_response": true,
+        "rule_set": "cnip",
+        "action": "route",
+        "server": "local"
+      },
+      // 匹配DNS响应结果，如果以上规则均未匹配，则直接响应。
+      {
+        "match_response": true,
+        "action": "respond"
+      },
+      // 强化版: 主动拒绝部分不必要查询，或直接返回NOERROR。
+      {
+        "query_type": ["A", "AAAA"],
+        "invert": true, // 反转匹配，即非A/AAAA查询
+        "action": "predefined",
+        "rcode": "NOERROR" // 返回成功但无结果，防止客户端一直等待。
+      },
+      {
+        "rule_set": ["httpDNS", "DNSreject", "Ads"],
+        "action": "predefined",
+        "rcode": "NOERROR"
+      },
+      {
+        "rule_set": ["private", "Filter"],
+        "server": "alidns-quic" // 特定规则集使用国内DNS。
+      },
+      // 精简版: 基于Clash模式的DNS分流。
+      {
+        "clash_mode": "Direct",
+        "server": "local"
+      },
+      {
+        "clash_mode": "Global",
+        "server": "google"
+      },
+      {
+        "query_type": ["AAAA"], // 精简版: 所有IPv6查询走本地，避免代理。
+        "server": "local"
+      },
+      {
+        "rule_set": "geosite-cn", // 精简版: 中国域名使用本地DNS。
+        "server": "local"
+      },
+      {
+        "query_type": ["A"], // 精简版: 作为最终规则，所有A记录查询走fakeip。
+        "server": "fakeip"
+      }
+    ],
+    // 最终兜底DNS服务器
+    "final": "doh-ech", // 优化版使用ECH DNS。稳定版/强化版使用 "ggdns"。精简版无final。
+    // 其他DNS配置
+    "strategy": "prefer_ipv4", // 优先使用IPv4。所有版本相同。
+    "reverse_mapping": true, // 尝试从FakeIP反向映射回域名，对某些应用有用。精简版无此配置。
+    "cache_capacity": 65536, // DNS缓存大小。精简版无。
+    "optimistic": true // 乐观DNS，同时向所有匹配服务器查询，取第一个响应。精简版无。
+  },
+
+  // ==================================================
+  // HTTP 客户端配置
+  // ==================================================
+  "http_clients": [
+    {
+      "tag": "default",
+      // 优化版/稳定版/强化版:
+      "detour": "PROXY", // 通过PROXY出站下载规则集等资源。
+      // 精简版:
+      // "detour": "♻️ 自动选择"
+      "version": 2, // 稳定版/强化版/精简版指定使用HTTP/2。
+      "stream_receive_window": 0, // 稳定版/强化版特有，流控窗口，0为使用内核默认值。
+      "connection_receive_window": 0 // 稳定版/强化版特有。
+    }
+  ],
+
+  // ==================================================
+  // 入站（Inbounds）配置
+  // ==================================================
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      // 优化版/稳定版/强化版:
+      "address": ["10.8.0.1/24"],
+      // 精简版:
+      // "address": "172.19.0.1/30",
+      "mtu": 1500, // 最大传输单元。精简版无，使用系统默认。
+      "stack": "mixed", // 网络栈: mixed(混合), system(系统), gvisor。精简版使用 "system"。
+      "auto_route": true, // 自动设置路由，接管所有流量。
+      "strict_route": true, // 严格路由，防止路由泄露。
+      // 精简版特有: 为TUN模式配置自动HTTP代理，方便不支持TUN的应用使用。
+      "platform": {
+        "http_proxy": {
+          "enabled": true,
+          "server": "127.0.0.1",
+          "server_port": 7890
+        }
+      }
+    },
+    {
+      "type": "mixed", // 混合入站，支持HTTP和SOCKS5。
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+    }
+  ],
+
+  // ==================================================
+  // 出站（Outbounds）配置
+  // ==================================================
+  "outbounds": [
+    // 直连出站 (所有版本共有)
+    {
+      "type": "direct",
+      "tag": "DIRECT", // 精简版tag为 "🎯 direct"
+      "domain_resolver": "alidns-quic" // 精简版无此配置。优化版/稳定版/强化版指定此出站的域名由阿里DNS解析。
+    },
+    // 代理选择器 (PROXY) (优化版/稳定版/强化版共有，精简版无此层级)
+    {
+      "type": "selector",
+      "tag": "PROXY", // 精简版对应为 "✈️ Proxy"
+      "outbounds": [
+        "AUTO", // 自动测速组。精简版对应 "♻️ 自动选择"
+        // 优化版:
+        "🚀 CF-优选-Visa",
+        "🚀 CF-优选-DO",
+        // 稳定版/强化版:
+        "🇺🇸 pkpk01",
+        "🇺🇸 pkpk02",
+        // 精简版:
+        // "♻️ 自动选择",
+        "DIRECT" // 精简版对应 "🎯 direct"
+      ],
+      "default": "AUTO", // 默认使用自动测速组。精简版选择器的默认由各selector自行定义。
+      "interrupt_exist_connections": false // 切换节点时不中断已有连接。优化版特有，稳定版/强化版无。
+    },
+    // 自动测速组 (所有版本共有)
+    {
+      "type": "urltest",
+      "tag": "AUTO", // 精简版对应 "♻️ 自动选择"
+      "outbounds": [
+        "🚀 CF-优选-Visa", "🚀 CF-优选-DO", // 优化版
+        "🇺🇸 pkpk01", "🇺🇸 pkpk02" // 稳定版/强化版/精简版
+      ],
+      "url": "http://cp.cloudflare.com/", // 优化版测速URL。
+      // 稳定版/强化版/精简版: "url": "http://www.gstatic.com/generate_204"
+      "interval": "10m", // 测速间隔。精简版为 "5m"。
+      "tolerance": 50, // 容忍度(ms)，低于此差异不会触发切换。
+      "idle_timeout": "30m", // 节点空闲超时，将重新测速。精简版无此配置。
+      "interrupt_exist_connections": false // 优化版特有。
+    },
+    // 以下为优化版/稳定版/强化版共有的更多选择器组，精简版在其他地方定义
+    {
+      "type": "selector",
+      "tag": "GLOBAL",
+      "outbounds": ["PROXY", "DIRECT"],
+      "default": "PROXY"
+    },
+    {
+      "type": "selector",
+      "tag": "CN",
+      "outbounds": ["DIRECT", "PROXY"],
+      "default": "DIRECT"
+    },
+    {
+      "type": "selector",
+      "tag": "Final", // 路由最终兜底出站
+      "outbounds": ["PROXY", "DIRECT", "REJECT-DROP"],
+      "default": "REJECT-DROP" // 优化版默认拒绝，更安全。稳定版/强化版为 "PROXY"。
+    },
+    {
+      "type": "block",
+      "tag": "REJECT-DROP" // 用于主动拒绝或丢弃连接。
+    },
+    // 精简版特有的选择器组
+    {
+      "type": "selector",
+      "tag": "🤖 AI",
+      "outbounds": ["♻️ 自动选择", "✈️ Proxy"]
+    },
+    {
+      "type": "selector",
+      "tag": "▶️ YouTube",
+      "outbounds": ["♻️ 自动选择", "✈️ Proxy"]
+    },
+    {
+      "type": "selector",
+      "tag": "📱 Telegram",
+      "outbounds": ["♻️ 自动选择", "✈️ Proxy"]
+    },
+    {
+      "type": "selector",
+      "tag": "✈️ Proxy",
+      "outbounds": ["♻️ 自动选择", "🎯 direct"]
+    },
+    // 块出站 (精简版)
+    {
+      "type": "block",
+      "tag": "block"
+    },
+
+    // ==================================================
+    // 节点配置 (所有版本共有，但具体参数有差异)
+    // ==================================================
+    {
+      "type": "vless",
+      // 优化版:
+      "tag": "🚀 CF-优选-Visa",
+      // 稳定版/强化版/精简版:
+      // "tag": "🇺🇸 pkpk01",
+      "server": "CF优选域名IP", // 占位符，需替换
+      "server_port": 443,
+      "uuid": "uuid", // 占位符，需替换
+      // 优化版/稳定版/强化版:
+      "domain_resolver": "alidns-quic", // 解析服务器地址的DNS。精简版无。
+      // 连接优化 (强化版特有，精简版无)
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "udp_fragment": true,
+      "packet_encoding": "xudp", // 强化版特有，xudp可以更稳定地代理UDP流量。
+      "transport": {
+        "type": "ws",
+        "path": "/路径", // 占位符，需替换。稳定版/强化版/精简版为 "/pkpk-vl"
+        "headers": { "Host": "节点域名" }, // 占位符，需替换
+        "max_early_data": 2560, // 开启0-RTT，减少连接耗时。稳定版/强化版/精简版特有。
+        "early_data_header_name": "Sec-WebSocket-Protocol" // 稳定版/强化版/精简版特有。
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "节点域名", // 占位符，需替换
+        "utls": { "enabled": true, "fingerprint": "chrome" }, // 伪装TLS指纹为Chrome。
+        // 优化版特有:
+        "alpn": ["http/1.1"],
+        "ech": { "enabled": false }
+      }
+    },
+    {
+      "type": "vless",
+      // 优化版:
+      "tag": "🚀 CF-优选-DO",
+      // 其他版:
+      // "tag": "🇺🇸 pkpk02",
+      // ... 配置同上，只有tag不同
+    }
+  ],
+
+  // ==================================================
+  // 路由（Route）配置
+  // ==================================================
+  "route": {
+    "final": "Final", // 最终匹配的出站。精简版为 "♻️ 自动选择"。
+    "default_domain_resolver": "alidns-quic", // 路由决策中解析域名的默认DNS。精简版为 "local"。
+    "auto_detect_interface": true, // 所有版本均启用。
+    "rules": [
+      // === 所有版本高度共有的基础规则 ===
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          { "port": 53 }, // 目标端口为53
+          { "protocol": "dns" } // 或协议为dns
+        ],
+        "action": "hijack-dns" // 劫持所有DNS流量到sing-box内置DNS服务器，防止DNS泄露。
+      },
+      { "action": "sniff" }, // 开启流量嗅探，识别域名、协议等。精简版无此规则但通常默认开启。
+      {
+        "type": "logical", // 逻辑与: 拦截QUIC协议443端口的流量，强制使用TCP/HTTP，可能为了更好的代理稳定性。
+        "mode": "and",
+        "rules": [
+          { "protocol": "quic" },
+          { "port": 443 }
+        ],
+        "action": "reject" // 稳定版/强化版有 "method": "drop" 直接丢弃。
+      },
+      {
+        "package_name": [ // 按APP包名路由，精确控制特定APP。
+          "com.google.android.youtube", "app.revanced.android.youtube",
+          "org.telegram.messenger", "org.telegram.messenger.beta"
+        ],
+        "outbound": "PROXY" // 精简版无此规则。
+      },
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [ // 确保Google移动服务的特定域名走代理，保证FCM推送等工作。
+          {
+            "domain_suffix": [
+              "mtalk.google.com", "alt1-mtalk.google.com", "alt2-mtalk.google.com",
+              "alt3-mtalk.google.com", "alt4-mtalk.google.com", "alt5-mtalk.google.com",
+              "alt6-mtalk.google.com", "alt7-mtalk.google.com", "alt8-mtalk.google.com"
+            ]
+          },
+          { "port": [443, 5228] }
+        ],
+        "outbound": "PROXY"
+      },
+      // 去广告规则 (所有版本共有)
+      {
+        "rule_set": ["geosite_adguard", "geosite-category-ads-all"],
+        "action": "reject"
+      },
+      // NTP流量强制直连
+      {
+        "domain_keyword": ["ntp", "time"],
+        "network": "udp",
+        "port": 123,
+        "outbound": "DIRECT" // 精简版outbound为"🎯 direct"
+      },
+      // 拦截 STUN, TURN, httpdns 等协议，防止WebRTC泄露IP或DNS泄露。
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          { "network": "udp", "port": [3478, 5349, 5350, 19302, 10000] },
+          { "domain_regex": "^stun\\..+" },
+          { "domain_keyword": ["stun", "turn", "httpdns"] },
+          { "protocol": "stun" }
+        ],
+        "action": "reject"
+      },
+      // 拦截欺诈/钓鱼网站 (所有版本共有)
+      {
+        "rule_set": "anti_fraud",
+        "action": "reject"
+      },
+      // 局域网流量直连 (所有版本共有)
+      {
+        "ip_is_private": true,
+        "outbound": "DIRECT"
+      },
+      // FakeIP地址段必须走代理，否则无法正常连接 (所有版本共有)
+      {
+        "ip_cidr": ["198.18.0.0/15"],
+        "outbound": "PROXY"
+      },
+      // 基于Wi-Fi网络的规则 (优化版/稳定版/强化版)
+      {
+        "wifi_ssid": ["MyHomeWiFi"], // 连接特定Wi-Fi时强制使用代理。
+        "outbound": "PROXY"
+      },
+      {
+        "wifi_bssid": ["00:11:22:33:44:55"], // 连接特定路由器时强制直连。
+        "outbound": "DIRECT"
+      },
+      // 规则集分流 (所有版本共有)
+      {
+        "rule_set": ["telegramip","geosite-google", "proxy","games","ai"], // 精简版无此复合规则，分散到各selector中。
+        "outbound": "PROXY"
+      },
+      {
+        "rule_set": ["private", "cn", "cnip", "microsoft-cn", "apple-cn", "google-cn", "games-cn", "networktest"],
+        "outbound": "DIRECT"
+      },
+      { "action": "resolve" }, // 对剩余流量进行DNS解析，以便后续可能基于IP的规则匹配。
+      // 稳定版特有: 为特定IP和域名添加直连规则作为示例。
+      {
+        "ip_cidr": ["1.1.1.1/32"],
+        "outbound": "DIRECT"
+      },
+      {
+        "domain": ["www.google.com", "www.apple.com"],
+        "outbound": "DIRECT"
+      },
+      // === 强化版特有规则 ===
+      {
+        "action": "route-options",
+        "udp_disable_domain_unmapping": true, // 禁用UDP域名的反解，提升性能。
+        "udp_connect": true // 使用UCP Connect，类似TCP的连接行为，更稳定。
+      },
+      {
+        "rule_set": ["Ads", "adobe", "httpDNS", "DNSreject"],
+        "action": "reject",
+        "method": "drop" // 直接丢弃，不回复，节省资源。
+      },
+      { "clash_mode": "Global", "outbound": "PROXY" }, // 兼容Clash全局模式
+      { "clash_mode": "Direct", "outbound": "DIRECT" }, // 兼容Clash直连模式
+      {
+        "rule_set": ["fcm", "Android"],
+        "outbound": "PROXY" // 确保Android系统和FCM推送走代理。
+      },
+      {
+        "domain_suffix": ["google.cn", "googleapis.cn"],
+        "outbound": "PROXY" // 即使是CN域名，Google服务仍可能需要代理。
+      },
+      {
+        "rule_set": ["telegram", "telegram_ip", "youtube", "instagram", "Google", "ai", "GlobalMedia", "Proxy", "gfw"],
+        "outbound": "PROXY" // 强化的代理规则集。
+      },
+      {
+        "rule_set": ["private", "Applications", "OnePlus"],
+        "outbound": "DIRECT" // 增强的直连规则集。
+      },
+      {
+        "protocol": ["ntp", "icmp"], // NTP和ICMP协议直连。
+        "outbound": "DIRECT"
+      },
+      {
+        "protocol": ["stun", "quic", "dtls"], // 再次拒绝STUN等协议。
+        "action": "reject"
+      },
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [ // 拦截非中国IPv6地址的流量，防止在无IPv6环境下发生连接问题。
+          { "ip_version": 6 },
+          { "default_interface_address": "2000::/3", "invert": true } // 2000::/3是全球单播IPv6地址段，反选即匹配非全球单播地址。
+        ],
+        "action": "reject"
+      },
+      // === 精简版特有规则 ===
+      { "clash_mode": "Direct", "outbound": "🎯 direct" },
+      { "clash_mode": "Global", "outbound": "✈️ Proxy" },
+      { "rule_set": "geosite-category-ads-all", "action": "reject" },
+      { "rule_set": ["geosite-cn", "geoip-cn"], "outbound": "🎯 direct" },
+      {
+        "type": "logical",
+        "mode": "or",
+        // 精细化控制AI服务走专用选择器。
+        "rules": [
+          { "rule_set": ["geosite-openai", "geosite-anthropic", "geosite-google-gemini"] },
+          { "domain_suffix": ["chatgpt.com", "claude.ai", "gateway.ai.cloudflare.com", "grok.com", "groq.com", "meta.ai", "openart.ai", "openrouter.ai", "perplexity.ai", "x.ai"] }
+        ],
+        "outbound": "🤖 AI"
+      },
+      { "rule_set": ["geosite-youtube", "geosite-netflix"], "outbound": "▶️ YouTube" },
+      { "rule_set": "geosite-telegram", "outbound": "📱 Telegram" },
+      { "rule_set": "geosite-geolocation-!cn", "outbound": "♻️ 自动选择" } // 最终，所有非中国域名走自动选择。
+    ],
+
+    // 规则集来源
+    "rule_set": [
+      // === 所有版本共享的核心规则集，使用不同的CDN源 ===
+      {
+        "tag": "geosite-category-ads-all",
+        "type": "remote",
+        "format": "binary", // 精简版未指定format，默认下载json格式。
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        // 精简版: "url": "https://gh-proxy.com/https://raw.githubusercontent.com/.../geosite-category-ads-all.srs"
+        "http_client": "default",
+        "update_interval": "48h" // 精简版为"24h"。
+      },
+      {
+        "tag": "geosite_adguard",
+        "type": "remote",
+        "format": "binary", // 精简版无此规则集。
+        "url": "https://cdn.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblocksingbox.srs",
+        "http_client": "default",
+        "update_interval": "48h"
+      },
+      {
+        "tag": "geosite-google", // 优化版/稳定版/强化版共有
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-google.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "geosite-youtube", // 优化版/稳定版/强化版共有
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-youtube.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      // 优化版/稳定版/强化版使用的 DustinWin 系列规则集，统一使用此源
+      {
+        "tag": "proxy",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/proxy.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "games",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "ai",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ai.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "private",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/private.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "anti_fraud",
+        "type": "remote",
+        "format": "source", // 该规则集使用source格式(json)。
+        "url": "https://raw.githubusercontent.com/hwsaya/nothing/refs/heads/main/rules/FuckFZ.json",
+        "update_interval": "48h"
+      },
+      {
+        "tag": "cn",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cn.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "microsoft-cn",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/microsoft-cn.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "apple-cn",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/apple-cn.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "google-cn",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/google-cn.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "games-cn",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games-cn.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "networktest",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/networktest.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "telegramip",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/telegramip.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "cnip",
+        "type": "remote", "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cnip.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      // === 强化版扩展的规则集 ===
+      {
+        "tag": "telegram_ip",
+        "type": "remote", "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/telegram.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "Proxy",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "gfw",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/gfw.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "Filter",
+        "type": "remote", "format": "binary",
+        "url": "https://github.com/DustinWin/ruleset_geodata/releases/download/sing-box-ruleset/fakeip-filter.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "DNSreject",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/senshinya/singbox_ruleset/main/rule/AdGuardSDNSFilter/AdGuardSDNSFilter.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "httpDNS",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/senshinya/singbox_ruleset/main/rule/BlockHttpDNS/BlockHttpDNS.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "Ads",
+        "type": "remote", "format": "binary",
+        "url": "https://github.com/DustinWin/ruleset_geodata/releases/download/sing-box-ruleset/ads.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "adobe",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/adobe.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "Apple",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-apple.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "fcm",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/senshinya/singbox_ruleset/main/rule/GoogleFCM/GoogleFCM.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "Android",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/senshinya/singbox_ruleset/main/rule/Android/Android.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "telegram",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-telegram.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "instagram",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-instagram.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "Google",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/senshinya/singbox_ruleset/main/rule/Google/Google.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "GlobalMedia",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-entertainment.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "Applications",
+        "type": "remote", "format": "binary",
+        "url": "https://github.com/DustinWin/ruleset_geodata/releases/download/sing-box-ruleset/applications.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      {
+        "tag": "OnePlus",
+        "type": "remote", "format": "source",
+        "url": "https://raw.githubusercontent.com/senshinya/singbox_ruleset/main/rule/OnePlus/OnePlus.srs",
+        "http_client": "default", "update_interval": "48h"
+      },
+      // === 精简版特有的规则集 ===
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-openai",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-openai.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-anthropic",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-anthropic.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-google-gemini",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-google-gemini.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-netflix",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-netflix.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-telegram",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-telegram.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-geolocation-!cn",
+        "type": "remote",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs",
+        "http_client": "default",
+        "update_interval": "24h"
+      }
+    ]
+  },
+
+  // ==================================================
+  // 实验性功能 (Experimental)
+  // ==================================================
+  "experimental": {
+    // Clash API (所有版本共有，部分配置项不同)
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui", // Web面板本地目录名。
+      // 优化版/稳定版 使用 metaCubeX 的压缩包
+      "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/releases/latest/download/metacubexd.zip",
+      // 强化版 指定了特定版本 v1.245.1 的tgz包，更稳定。
+      // "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/releases/download/v1.245.1/compressed-dist.tgz"
+      // 精简版 没有external_ui_download_url，不会自动下载面板。
+      "external_ui_download_detour": "PROXY", // 下载面板时使用代理。精简版无。
+      "secret": "kSDuU2WHyf72taGMdDS0ib6klwFVF5QIM4HGhS5f4Jw=", // API密钥，用于登录面板。
+      "default_mode": "rule" // 默认Clash模式为规则模式。
+    },
+    // 缓存文件 (所有版本共有)
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db", // 优化版/稳定版/强化版指定了路径。精简版无。
+      "cache_id": "cinchov", // 优化版/稳定版/强化版指定了ID，用于区分不同配置的缓存。
+      "store_dns": true, // 缓存DNS结果，加速启动。
+      "store_fakeip": true // 缓存FakeIP映射。
+    },
+    // 调试与性能 (Debug)
+    "debug": {
+      // 优化版/稳定版:
+      "gc_percent": 50, // Go GC触发的内存增长百分比。默认100。
+      "memory_limit": "200MB", // 软内存限制。
+      // 强化版:
+      // "gc_percent": 100,
+      // "memory_limit": "400MB"
+      // 精简版无debug配置，使用内核默认。
+    }
+  }
+}
+
+```json
+{
+  // =================================================================
+  // 1.14.0-alpha.18 四个版本配置差异总结
+  // =================================================================
+  //
+  // 注意: 此JSON为总结性文档，并非实际可运行的配置文件。
+  // 它用结构化方式对比了优化版、稳定版、强化版、精简版的核心差异。
+  //
+  // =================================================================
+
+  "版本概览": {
+    "优化版": {
+      "设计目标": "在保证代理稳定性的前提下，最大化国内网站（尤其AI平台）的访问速度",
+      "适用场景": "国内用户、AI开发者、追求低延迟体验",
+      "复杂度": "高",
+      "内存占用": "中等 (约200MB)"
+    },
+    "稳定版": {
+      "设计目标": "基于优化版微调，去除实验性功能，确保长期稳定运行",
+      "适用场景": "日常办公、对稳定性要求高于最新特性的用户",
+      "复杂度": "中高",
+      "内存占用": "中等 (约200MB)"
+    },
+    "强化版": {
+      "设计目标": "集合最全面的去广告、隐私保护、分流规则，功能最强大",
+      "适用场景": "高级用户、追求极致隐私和内容过滤、设备性能较好",
+      "复杂度": "极高",
+      "内存占用": "高 (约400MB)"
+    },
+    "精简版": {
+      "设计目标": "极度精简，只保留核心代理功能，追求最小资源占用",
+      "适用场景": "低配设备(如路由器)、对配置简洁度有要求、不需要复杂功能",
+      "复杂度": "低",
+      "内存占用": "极低"
+    }
+  },
+
+  "核心差异对照表": {
+
+    "日志级别": {
+      "优化版": "trace (最详细，方便调试)",
+      "稳定版": "trace",
+      "强化版": "trace",
+      "精简版": "warn (仅输出警告和错误，减少日志写入)"
+    },
+
+    "NTP时间同步": {
+      "优化版": "ntp.aliyun.com",
+      "稳定版": "ntp.aliyun.com",
+      "强化版": "ntp.aliyun.com",
+      "精简版": "time.apple.com (可能在某些网络环境下更稳定)"
+    },
+
+    "DNS服务器": {
+      "优化版": [
+        "local (系统DNS)",
+        "hosts_fix (预定义hosts)",
+        "alidns-dot (阿里DNS over TLS)",
+        "alidns-quic (阿里DNS over QUIC)",
+        "ggdns (Google DNS over HTTPS，代理)",
+        "doh-ech (Google DNS with ECH，实验性)",
+        "fakeip (虚拟IP)"
+      ],
+      "稳定版": [
+        "local",
+        "hosts_fix",
+        "alidns-dot",
+        "alidns-quic",
+        "ggdns",
+        "fakeip"
+        // 移除了 doh-ech
+      ],
+      "强化版": [
+        "local",
+        "hosts_fix (新增 dns.adguard.com 解析)",
+        "alidns-dot",
+        "alidns-quic",
+        "ggdns",
+        "fakeip (新增 inet6_range)",
+        "adguard-dns (AdGuard DNS over TLS，用于过滤广告和跟踪器)"
+      ],
+      "精简版": [
+        "google (Google DNS over TLS，代理)",
+        "local (223.5.5.5 标准QUIC直连，无hosts预定义)",
+        "fakeip"
+        // 极简设计，无阿里DNS、无AdGuard DNS
+      ]
+    },
+
+    "DNS最终兜底": {
+      "优化版": "doh-ech (走ECH增强隐私的Google DNS)",
+      "稳定版": "ggdns (走普通代理的Google DNS)",
+      "强化版": "ggdns",
+      "精简版": "无final字段，由规则链决定"
+    },
+
+    "DNS规则特点": {
+      "优化版": [
+        "大量国内AI/内容平台域名显式指定阿里DNS，保证直连速度",
+        "使用 evaluate 规则对 .cn 域名进行智能评估",
+        "节点域名使用 doh-ech 解析，增强隐私",
+        "proxy/games/ai 规则集使用 client_subnet 重写，优化CDN节点选择"
+      ],
+      "稳定版": [
+        "与优化版类似的国内域名列表，但去掉了 evaluate 规则",
+        "去除了节点域名的特殊ECH解析",
+        "去除了 client_subnet 重写功能"
+      ],
+      "强化版": [
+        "新增多条广告/隐私过滤规则 (httpDNS, DNSreject, Ads)",
+        "proxy/games/ai 规则集先经 adguard-dns 过滤，再查 fakeip",
+        "非A/AAAA查询直接返回NOERROR，防止客户端等待",
+        "特定规则集(Filter, private)强制使用阿里DNS"
+      ],
+      "精简版": [
+        "仅基于Clash模式和规则集分流:",
+        "  - Direct模式 -> 本地DNS",
+        "  - Global模式 -> Google DNS",
+        "  - 中国域名(geosite-cn) -> 本地DNS",
+        "  - 其余A记录 -> fakeip",
+        "  - 所有AAAA记录 -> 本地DNS (避免IPv6代理问题)"
+      ]
+    },
+
+    "出站节点": {
+      "优化版": {
+        "选择器": "PROXY (包含 AUTO, 🚀 CF-优选-Visa, 🚀 CF-优选-DO, DIRECT)",
+        "测速URL": "http://cp.cloudflare.com/",
+        "节点参数": "基础TLS配置，alpn: http/1.1, ech: false"
+      },
+      "稳定版": {
+        "选择器": "PROXY (包含 AUTO, 🇺🇸 pkpk01, 🇺🇸 pkpk02, DIRECT)",
+        "测速URL": "http://www.gstatic.com/generate_204",
+        "节点参数": "增加 max_early_data(0-RTT) 和 early_data_header_name，连接更快"
+      },
+      "强化版": {
+        "选择器": "与稳定版相同",
+        "测速URL": "与稳定版相同",
+        "节点参数": "在稳定版基础上增加: tcp_fast_open, tcp_keep_alive, udp_fragment, packet_encoding: xudp。UDP和TCP连接性能更强"
+      },
+      "精简版": {
+        "选择器": "无总PROXY选择器，而是按服务细分: ♻️ 自动选择, 🤖 AI, ▶️ YouTube, 📱 Telegram, ✈️ Proxy",
+        "测速URL": "http://www.gstatic.com/generate_204 (间隔仅5m，切换更灵敏)",
+        "节点参数": "与稳定版相同"
+      }
+    },
+
+    "路由规则特点": {
+      "优化版": [
+        "Final出站默认: REJECT-DROP (安全优先，未匹配规则即拒绝)",
+        "Wi-Fi SSID/BSSID 规则，根据连接的网络切换代理",
+        "quic 443 端口直接拒绝",
+        "包名路由: YouTube, Telegram",
+        "Google FCM 域名指定代理"
+      ],
+      "稳定版": [
+        "Final出站默认: PROXY (宽松策略，未匹配规则走代理)",
+        "与优化版类似，但额外增加了特定IP(1.1.1.1)和域名(www.google.com, www.apple.com)的直连规则示例"
+      ],
+      "强化版": [
+        "Final出站默认: PROXY",
+        "规则数量暴增，新增大量规则集:",
+        "  - 去广告: Ads, adobe",
+        "  - 隐私: httpDNS, DNSreject",
+        "  - 服务: fcm, Android, Apple, OnePlus",
+        "  - 媒体: telegram, youtube, instagram, GlobalMedia",
+        "  - 代理: gfw, Proxy",
+        "Clash模式兼容 (Global -> PROXY, Direct -> DIRECT)",
+        "拒绝非中国IPv6地址，防止IPv6连接问题",
+        "route-options 优化UDP连接性能"
+      ],
+      "精简版": [
+        "Final出站默认: ♻️ 自动选择",
+        "极简规则，只保留核心:",
+        "  - Clash模式适配",
+        "  - DNS劫持",
+        "  - 广告拦截 (geosite-category-ads-all)",
+        "  - 中国流量直连 (geosite-cn + geoip-cn)",
+        "  - AI服务分流至 🤖 AI 选择器",
+        "  - YouTube/Netflix 分流至 ▶️ YouTube 选择器",
+        "  - Telegram 分流至 📱 Telegram 选择器",
+        "  - 其余非中国流量走 ♻️ 自动选择",
+        "无Wi-Fi规则、无包名路由、无QUIC拦截等高级功能"
+      ]
+    },
+
+    "规则集更新与格式": {
+      "优化版": {
+        "格式": "binary (.srs) 为主，anti_fraud为source",
+        "更新间隔": "48h",
+        "CDN": "cdn.jsdelivr.net"
+      },
+      "稳定版": {
+        "格式": "binary (.srs) 为主",
+        "更新间隔": "48h",
+        "CDN": "cdn.jsdelivr.net"
+      },
+      "强化版": {
+        "格式": "binary (.srs) 和 source 混合",
+        "更新间隔": "48h",
+        "CDN": "混合使用 GitHub raw, cdn.jsdelivr.net, MetaCubeX规则集",
+        "新增规则集": [
+          "telegram_ip (MetaCubeX)",
+          "Proxy (geosite-geolocation-!cn)",
+          "gfw (MetaCubeX)",
+          "Filter (fakeip-filter)",
+          "DNSreject (AdGuardSDNSFilter)",
+          "httpDNS (BlockHttpDNS)",
+          "Ads (DustinWin ads)",
+          "adobe (MetaCubeX)",
+          "Apple (sing-geosite)",
+          "fcm (GoogleFCM)",
+          "Android (Android)",
+          "telegram (sing-geosite)",
+          "instagram (sing-geosite)",
+          "Google (senshinya)",
+          "GlobalMedia (MetaCubeX entertainment)",
+          "Applications (DustinWin)",
+          "OnePlus (senshinya)"
+        ]
+      },
+      "精简版": {
+        "格式": "source (json)，未指定format，省去binary解析开销",
+        "更新间隔": "24h (更频繁地获取最新规则)",
+        "CDN": "gh-proxy.com (通过代理下载，避免直连GitHub失败)",
+        "规则集": [
+          "geosite-category-ads-all (广告)",
+          "geosite-cn (中国域名)",
+          "geoip-cn (中国IP)",
+          "geosite-openai (AI)",
+          "geosite-anthropic (AI)",
+          "geosite-google-gemini (AI)",
+          "geosite-youtube (视频)",
+          "geosite-netflix (视频)",
+          "geosite-telegram (通讯)",
+          "geosite-geolocation-!cn (非中国)"
+        ]
+      }
+    },
+
+    "Web面板与实验性功能": {
+      "优化版": {
+        "面板URL": "Metacubexd latest zip",
+        "debug.gc_percent": 50,
+        "debug.memory_limit": "200MB"
+      },
+      "稳定版": {
+        "面板URL": "Metacubexd latest zip",
+        "debug.gc_percent": 50,
+        "debug.memory_limit": "200MB"
+      },
+      "强化版": {
+        "面板URL": "Metacubexd v1.245.1 tgz (固定版本，更稳定)",
+        "debug.gc_percent": 100,  // 更激进的GC策略
+        "debug.memory_limit": "400MB" // 允许使用更多内存以承载大量规则集
+      },
+      "精简版": {
+        "面板URL": "无external_ui_download_url，需手动放置面板文件",
+        "debug配置": "无，使用内核默认值 (内存占用最小)"
+      }
+    },
+
+    "连接与下载优化": {
+      "优化版": {
+        "http_clients.detour": "PROXY",
+        "http_clients.version": "未指定 (默认HTTP/1.1)"
+      },
+      "稳定版": {
+        "http_clients.detour": "PROXY",
+        "http_clients.version": "2 (HTTP/2，连接复用，效率更高)"
+      },
+      "强化版": {
+        "http_clients.detour": "PROXY",
+        "http_clients.version": "2"
+      },
+      "精简版": {
+        "http_clients.detour": "♻️ 自动选择",
+        "http_clients.version": "2"
+      }
+    },
+
+    "TUN栈与地址": {
+      "优化版": {
+        "address": "10.8.0.1/24",
+        "stack": "mixed (混合栈，兼容性好)"
+      },
+      "稳定版": {
+        "address": "10.8.0.1/24",
+        "stack": "mixed"
+      },
+      "强化版": {
+        "address": "10.8.0.1/24",
+        "stack": "mixed"
+      },
+      "精简版": {
+        "address": "172.19.0.1/30 (更小的子网，仅2个可用IP)",
+        "stack": "system (使用系统网络栈，资源占用更低)",
+        "platform.http_proxy": "开启 (为不支持TUN的应用提供HTTP代理)"
+      }
+    }
+  },
+
+  "版本选择建议": {
+    "如果你追求最快的国内网站访问速度，特别是AI平台": "选择「优化版」",
+    "如果你希望配置稳定，不折腾，日常使用不出错": "选择「稳定版」",
+    "如果你是高级用户，想要最强的去广告和隐私保护，且设备性能足够": "选择「强化版」",
+    "如果你设备性能差(如硬路由)，或只需要简单翻墙，喜欢一目了然的配置": "选择「精简版」",
+    "如果你想深入理解sing-box配置": "四个版本都看看，它们的差异就是最好的学习材料"
+  }
+}
+```

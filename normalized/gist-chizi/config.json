@@ -1,0 +1,382 @@
+{
+  "$schema": "https://raw.githubusercontent.com/reF1nd/sing-box/reF1nd-testing-next/docs/schema.json",
+  "dns": {
+    "final": "dns-proxy",
+    "optimistic": true,
+    "rules": [
+      {
+        "action": "route",
+        "clash_mode": "Global",
+        "server": "dns-proxy"
+      },
+      {
+        "action": "route",
+        "clash_mode": "Direct",
+        "server": "dns-direct"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "direct",
+          "geosite/apple-cn"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "proxy"
+        ],
+        "server": "dns-proxy"
+      },
+      {
+        "action": "reject",
+        "mode": "and",
+        "rules": [
+          {
+            "clash_mode": "AllowAds",
+            "invert": true
+          },
+          {
+            "rule_set": [
+              "block",
+              "Ads_AWAvenue",
+              "geosite/category-ads-all"
+            ]
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "geosite/category-ai-!cn",
+          "geosite/google"
+        ],
+        "server": "dns-proxy"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "geosite/cn"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "geosite/geolocation-!cn"
+        ],
+        "server": "dns-proxy"
+      }
+    ],
+    "servers": [
+      {
+        "servers": [
+          "cloudflare",
+          "google"
+        ],
+        "tag": "dns-proxy",
+        "type": "group"
+      },
+      {
+        "servers": [
+          "ali",
+          "tencent"
+        ],
+        "tag": "dns-direct",
+        "type": "group"
+      },
+      {
+        "predefined": {
+          "cloudflare-dns.com": [
+            "1.1.1.1",
+            "1.0.0.1"
+          ],
+          "dns.alidns.com": [
+            "223.5.5.5",
+            "223.6.6.6"
+          ],
+          "dns.google": [
+            "8.8.8.8",
+            "8.8.4.4"
+          ],
+          "doh.pub": [
+            "120.53.53.53",
+            "1.12.12.12"
+          ]
+        },
+        "tag": "hosts",
+        "type": "hosts"
+      },
+      {
+        "detour": "Proxy",
+        "domain_resolver": "hosts",
+        "server": "cloudflare-dns.com",
+        "tag": "cloudflare",
+        "type": "https"
+      },
+      {
+        "detour": "Proxy",
+        "domain_resolver": "hosts",
+        "server": "dns.google",
+        "tag": "google",
+        "type": "https"
+      },
+      {
+        "domain_resolver": "hosts",
+        "server": "dns.alidns.com",
+        "tag": "ali",
+        "type": "https"
+      },
+      {
+        "domain_resolver": "hosts",
+        "server": "doh.pub",
+        "tag": "tencent",
+        "type": "https"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db"
+    },
+    "clash_api": {
+      "default_mode": "Rule",
+      "external_controller": "0.0.0.0:9090",
+      "external_ui": "zashboard",
+      "external_ui_download_url": "https://github.com/Zephyruso/zashboard/releases/download/v3.22.0/dist-cdn-fonts.zip",
+      "secret": "singbox"
+    }
+  },
+  "http_clients": [
+    {
+      "detour": "Proxy",
+      "tag": "s-download"
+    }
+  ],
+  "inbounds": [
+    {
+      "listen": "::",
+      "listen_port": 7080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    },
+    {
+      "bypass_rule_set": [],
+      "local": {
+        "data_plane": "tc",
+        "dns_mode": "respect_policy",
+        "enabled": true,
+        "exclude_package": [],
+        "include_package": []
+      },
+      "shared": {
+        "data_plane": "socket_assign",
+        "dns_mode": "respect_policy",
+        "enabled": true,
+        "interface": [
+          "wlan2"
+        ]
+      },
+      "tag": "ebpf-in",
+      "type": "ebpf"
+    }
+  ],
+  "log": {
+    "disabled": false,
+    "level": "info",
+    "output": "sing-box.log",
+    "timestamp": true
+  },
+  "outbounds": [
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "default": "direct",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "direct"
+      ],
+      "tag": "Proxy",
+      "type": "selector",
+      "use_all_providers": true
+    }
+  ],
+  "providers": [
+    {
+      "exclude": "节点|剩余|套餐|客服|官网",
+      "health_check": {
+        "enabled": true,
+        "interval": "30m",
+        "timeout": "3s",
+        "url": "http://cp.cloudflare.com/generate_204"
+      },
+      "path": "./source/Provider1.json",
+      "tag": "Provider1",
+      "type": "remote",
+      "update_interval": "24h",
+      "url": "url",
+      "user_agent": "clash.meta/alpha/mihomo"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "default_domain_resolver": "dns-direct",
+    "final": "Proxy",
+    "find_process": true,
+    "rule_set": [
+      {
+        "format": "source",
+        "path": "./source/{tag}.json",
+        "tag": [
+          "block",
+          "direct",
+          "proxy"
+        ],
+        "type": "local"
+      },
+      {
+        "format": "source",
+        "path": "./source/rule_set/Ads_AWAvenue.json",
+        "tag": "Ads_AWAvenue",
+        "type": "remote",
+        "update_interval": "24h",
+        "url": "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json"
+      },
+      {
+        "format": "binary",
+        "path": "./source/rule_set/{tag}.srs",
+        "tag": [
+          "geosite/category-ads-all",
+          "geosite/apple-cn",
+          "geosite/category-ai-!cn",
+          "geosite/google",
+          "geosite/geolocation-!cn",
+          "geosite/cn",
+          "geoip/cn",
+          "geoip/telegram"
+        ],
+        "type": "remote",
+        "update_interval": "24h",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/{tag}.srs"
+      }
+    ],
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "hijack-dns",
+        "mode": "or",
+        "rules": [
+          {
+            "port": 53
+          },
+          {
+            "protocol": "dns"
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "route",
+        "clash_mode": "Global",
+        "outbound": "Proxy"
+      },
+      {
+        "action": "route",
+        "clash_mode": "Direct",
+        "outbound": "direct"
+      },
+      {
+        "action": "route",
+        "outbound": "Proxy",
+        "rule_set": "proxy"
+      },
+      {
+        "action": "route",
+        "outbound": "direct",
+        "rule_set": "direct"
+      },
+      {
+        "action": "reject",
+        "mode": "and",
+        "rules": [
+          {
+            "clash_mode": "AllowAds",
+            "invert": true
+          },
+          {
+            "rule_set": [
+              "block",
+              "Ads_AWAvenue",
+              "geosite/category-ads-all"
+            ]
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "route",
+        "outbound": "Proxy",
+        "rule_set": [
+          "geosite/category-ai-!cn",
+          "geosite/google"
+        ]
+      },
+      {
+        "action": "route",
+        "outbound": "direct",
+        "rule_set": [
+          "geosite/apple-cn",
+          "geosite/cn"
+        ]
+      },
+      {
+        "action": "route",
+        "outbound": "Proxy",
+        "rule_set": [
+          "geosite/geolocation-!cn"
+        ]
+      },
+      {
+        "action": "resolve",
+        "match_only": true
+      },
+      {
+        "action": "route",
+        "outbound": "direct",
+        "rule_set": "geoip/cn"
+      },
+      {
+        "action": "route",
+        "outbound": "Proxy",
+        "rule_set": [
+          "geoip/telegram"
+        ]
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ]
+  },
+  "services": [
+    {
+      "dashboard": {
+        "enabled": true,
+        "http_client": "s-download",
+        "path": "dashboard"
+      },
+      "listen": "::",
+      "listen_port": 9999,
+      "secret": "singbox",
+      "type": "api"
+    }
+  ]
+}

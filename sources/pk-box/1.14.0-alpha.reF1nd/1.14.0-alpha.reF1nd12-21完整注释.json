@@ -1,0 +1,968 @@
+{
+  // ============================================================
+  // sing-box 配置文件 - 多版本合并注释版
+  // 包含版本: 1.14.0-alpha.12-16, 1.14.0-alpha.17, 1.14.0-alpha.21
+  // ============================================================
+  
+  // ==================== 日志配置 ====================
+  "log": {
+    "level": "trace",     // 日志级别: trace(最详细) > debug > info > warn > error > fatal > panic
+    "timestamp": true     // 是否在日志中显示时间戳
+    // 三个版本均相同
+  },
+
+  // ==================== NTP时间同步配置 ====================
+  // 【版本差异】alpha.21版本移除了整个ntp配置块
+  "ntp": {
+    "enabled": true,           // 是否启用NTP时间同步
+    "server": "ntp.aliyun.com", // NTP服务器地址(阿里云NTP)
+    "server_port": 123,        // NTP服务器端口(标准NTP端口)
+    "interval": "30m"          // 同步间隔(每30分钟同步一次)
+    // alpha.12-16和alpha.17均保留此配置
+  },
+
+  // ==================== DNS配置 ====================
+  "dns": {
+    "servers": [
+      // ---- 本地DNS服务器 ----
+      // 【版本差异】alpha.21版本移除了local服务器
+      {
+        "tag": "local",
+        "type": "local"  // 使用系统本地DNS
+        // 仅alpha.12-16和alpha.17有此配置
+      },
+      
+      // ---- Hosts修复服务器 ----
+      // 用于解析公共DNS域名,避免DNS循环解析问题(鸡生蛋问题)
+      // 【版本差异】alpha.21中重命名为"dns_hosts"
+      {
+        "tag": "hosts_fix",    // alpha.21: "dns_hosts"
+        "type": "hosts",       // 使用静态hosts映射
+        "predefined": {
+          "dns.alidns.com": [          // 阿里DNS域名 → IP映射
+            "223.5.5.5",
+            "223.6.6.6"
+          ],
+          "doh.pub": [                // DNSPod域名 → IP映射
+            "1.12.12.21",
+            "120.53.53.53"
+          ],
+          "dns.google": [             // Google DNS域名 → IP映射
+            "8.8.8.8",
+            "8.8.4.4"
+          ],
+          "cloudflare-dns.com": [     // Cloudflare DNS域名 → IP映射
+            "104.16.248.249",
+            "104.16.249.249"
+          ]
+        }
+      },
+
+      // ---- 阿里DNS服务器(国内DNS) ----
+      // 【版本差异】alpha.12-16/17使用QUIC协议, alpha.21改为HTTPS协议
+      {
+        "tag": "alidns",              // alpha.21: "ali_dns"
+        "type": "quic",              // alpha.12-16/17: QUIC协议
+        // alpha.21: "type": "https"  // alpha.21改为HTTPS协议
+        "server": "dns.alidns.com",  // 阿里公共DNS
+        "domain_resolver": "hosts_fix", // alpha.21: "dns_hosts"
+        "detour": "DIRECT"           // alpha.12-16/17: 指定出站为直连
+        // alpha.21移除了detour字段,默认使用DIRECT
+      },
+
+      // ---- Google DNS服务器(国外DNS) ----
+      {
+        "tag": "ggdns",
+        "type": "https",             // 使用DNS over HTTPS
+        "server": "dns.google",      // Google公共DNS
+        "domain_resolver": "hosts_fix", // alpha.21: "dns_hosts"
+        "detour": "PROXY"            // 通过代理访问
+        // alpha.21保留此字段
+      },
+
+      // ---- FakeIP服务器 ----
+      // FakeIP原理: 对需要代理的域名返回虚假IP(198.18.0.0/15),实际连接时再通过域名路由到代理
+      // 优点: 减少DNS泄露,避免DNS污染,减少一次DNS查询延迟
+      {
+        "tag": "fakeip",
+        "type": "fakeip",
+        "inet4_range": "198.18.0.0/15"  // FakeIP使用的IP范围(保留地址段)
+        // 三个版本均相同
+      }
+    ],
+
+    // ---- DNS路由规则 ----
+    // DNS规则从上到下匹配,命中即停止
+    "rules": [
+      // 规则1: 本地/内网/ tracker域名 → 使用阿里DNS解析(直连)
+      {
+        "domain_suffix": [
+          ".local",                     // mDNS本地域名
+          ".lan",                       // 局域网域名
+          "miwifi.com",                // 小米路由器
+          "tplogin.cn",                // TP-Link路由器
+          "router.asus.com",           // 华硕路由器
+          "tendawifi.com",             // Tenda路由器
+          "tplinkwifi.net",            // TP-Link WiFi
+          "app-measurement.com",       // 应用统计(直连避免干扰)
+          "hm.baidu.com",              // 百度统计
+          "firebaselogging.googleapis.com",    // Firebase日志
+          "firebaselogging-pa.googleapis.com", // Firebase日志(PA)
+          "beacons.gvt2.com",          // Google信标
+          "beacons2.gvt2.com",         // Google信标2
+          "beacons3.gvt2.com",         // Google信标3
+          "tracking.miui.com",         // MIUI追踪
+          "market.xiaomi.com",         // 小米应用商店
+          "lancache.steamcontent.com"  // Steam局域网缓存
+        ],
+        "server": "alidns"             // alpha.21: "ali_dns"
+        // 【版本差异】alpha.21大幅精简此列表,只保留前6个+market.xiaomi.com+lancache.steamcontent.com
+      },
+
+      // 规则2: 广告域名 → 拒绝解析
+      {
+        "rule_set": [
+          "geosite_adguard",           // AdGuard规则集
+          "geosite-category-ads-all"   // sing-geosite广告分类
+        ],
+        "action": "reject"             // 拒绝DNS请求,返回空响应
+        // 【版本差异】alpha.21移除此规则(DNS层不再处理广告)
+      },
+
+      // 规则3: 特定查询类型 → 拒绝
+      {
+        "query_type": [
+          "SVCB",   // Service Binding记录(HTTPSSVC),用于ESNI/ECH
+          "HTTPS",  // HTTPS记录(同SVCB),可能泄露域名
+          "PTR"     // 反向DNS查询,可能泄露内网信息
+        ],
+        "action": "reject"
+        // 三个版本均相同
+      },
+
+      // 规则4: 代理/游戏/AI规则集 → FakeIP
+      // 【版本差异】alpha.21改为使用rule_set匹配geosite-google+proxy
+      {
+        "rule_set": ["proxy", "games", "ai"],  // alpha.21: ["geosite-google", "proxy"]
+        "query_type": ["A", "AAAA"],           // 仅处理IPv4/IPv6地址查询
+        // alpha.21移除了query_type限制
+        "server": "fakeip",
+        "rewrite_ttl": 300,                    // 重写TTL为300秒(alpha.21移除)
+        "client_subnet": "119.134.100.0/24"    // EDNS Client Subnet(alpha.21移除)
+        // ECS说明: 119.134.100.0/24 是中国电信广东的IP段,用于让DNS返回就近CDN节点
+      },
+
+      // 规则5: Google Play相关域名 → FakeIP
+      // 【版本差异】alpha.21移除此规则
+      {
+        "domain_suffix": [
+          "play.google.com",         // Google Play商店
+          "ggpht.com",              // Google Play图片CDN
+          "googleusercontent.com",  // Google用户内容CDN
+          "android.com"             // Android官网
+        ],
+        "server": "fakeip"
+        // 仅alpha.12-16和alpha.17有此规则
+      },
+
+      // 规则6: cn规则集 → 阿里DNS
+      // 【版本差异】仅alpha.21新增此规则
+      {
+        "rule_set": "cn",
+        "server": "ali_dns"
+        // 仅alpha.21
+      },
+
+      // 规则7: private规则集 → 阿里DNS
+      // 【版本差异】仅alpha.21新增此规则
+      {
+        "rule_set": "private",
+        "server": "ali_dns"
+        // 仅alpha.21
+      },
+
+      // 规则8: Direct模式 → 阿里DNS
+      {
+        "clash_mode": [
+          "direct"
+        ],
+        "server": "alidns"  // alpha.21: "ali_dns"
+        // 三个版本均相同(字段名随版本变化)
+      },
+
+      // 规则9: Global模式 → FakeIP
+      {
+        "clash_mode": [
+          "global"
+        ],
+        "server": "fakeip"
+        // 三个版本均相同
+      }
+    ],
+
+    // ---- 默认DNS服务器 ----
+    "final": "ggdns",  // 未命中任何规则时使用Google DNS
+    "strategy": "prefer_ipv4",  // 优先返回IPv4地址
+    
+    // ---- 以下字段仅alpha.12-16和alpha.17保留 ----
+    "reverse_mapping": true,    // 启用反向映射(FakeIP→域名)
+    // alpha.21移除此字段
+    "cache_capacity": 16000     // DNS缓存容量
+    // alpha.21移除此字段
+  },
+
+  // ==================== 入站配置 ====================
+  "inbounds": [
+    // ---- TUN入站(虚拟网卡) ----
+    // TUN模式: 创建虚拟网卡,将所有流量路由到sing-box
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": [
+        "10.8.0.1/24"          // TUN接口IP地址和子网
+      ],
+      "mtu": 1500,              // 最大传输单元
+      "stack": "mixed",         // alpha.12-16/17: mixed(混合TCP/UDP)
+      // alpha.21: "stack": "system"  // alpha.21改为system栈(更稳定)
+      "auto_route": true,       // 自动设置路由规则
+      "strict_route": true,     // 严格路由(防止路由泄漏)
+      // 【alpha.21新增】
+      "dns_mode": "hijack",     // DNS劫持模式(仅alpha.21)
+      "dns_address": "10.8.0.2" // DNS劫持地址(仅alpha.21)
+    },
+    
+    // ---- 混合入站(HTTP/Socks5) ----
+    {
+      "type": "mixed",          // 同时支持HTTP和Socks5代理
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",   // 仅监听本地回环地址(安全)
+      "listen_port": 7890      // 监听端口(Clash默认端口)
+      // 三个版本均相同
+    }
+  ],
+
+  // ==================== 出站配置 ====================
+  "outbounds": [
+    // ---- 直连出站 ----
+    {
+      "type": "direct",
+      "tag": "DIRECT",
+      "domain_resolver": "alidns"  // alpha.21: "ali_dns"
+      // 直连时使用阿里DNS解析
+    },
+
+    // ---- 代理选择器 ----
+    // 【版本差异】alpha.21节点结构变化较大
+    {
+      "type": "selector",
+      "tag": "PROXY",
+      "outbounds": [
+        "AUTO",                   // 自动测速(alpha.12-16/17)
+        // alpha.21新增:
+        "🟢 自动-测速",           // 自动选择延迟最低节点
+        "🔵 自动-稳定",           // 自动选择最稳定节点
+        "🚀 CF-优选-Visa",        // alpha.21: "pkpk01"
+        "🚀 CF-优选-DO",          // alpha.21: "pkpk02"
+        // alpha.21新增:
+        "pkpk03",
+        "pkpk04",
+        "DIRECT"                  // 可手动切换直连
+      ],
+      "default": "AUTO",          // alpha.12-16/17默认值
+      // alpha.21: "default": "🟢 自动-测速"
+      "interrupt_exist_connections": false  // 切换节点时不中断已有连接
+      // alpha.21移除此字段
+    },
+
+    // ---- 自动测速(旧版,AUTO) ----
+    // 【版本差异】仅alpha.12-16和alpha.17有此配置
+    {
+      "type": "urltest",
+      "tag": "AUTO",
+      "outbounds": [
+        "🚀 CF-优选-Visa",
+        "🚀 CF-优选-DO"
+      ],
+      "url": "http://www.gstatic.com/generate_204",  // Google连接检测URL
+      "interval": "10m",          // 每10分钟测速一次
+      "tolerance": 50,           // 容忍偏差50ms(新旧节点差距<50ms不切换)
+      "idle_timeout": "30m",     // 30分钟无连接后重新测速
+      "interrupt_exist_connections": false
+      // 仅alpha.12-16和alpha.17
+    },
+
+    // ---- 自动测速(新版,🟢) ----
+    // 【版本差异】仅alpha.21新增
+    {
+      "type": "urltest",
+      "tag": "🟢 自动-测速",
+      "outbounds": [
+        "pkpk01",
+        "pkpk02",
+        "pkpk03",
+        "pkpk04"
+      ],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "10m0s",
+      "tolerance": 100           // 容忍偏差100ms(比旧版更激进)
+      // 仅alpha.21
+    },
+
+    // ---- 自动稳定(新版,🔵) ----
+    // 【版本差异】仅alpha.21新增
+    // 与🟢的区别: 间隔更长(15分钟),容忍度更低(30ms),倾向于保持稳定连接
+    {
+      "type": "urltest",
+      "tag": "🔵 自动-稳定",
+      "outbounds": [
+        "pkpk01",
+        "pkpk02",
+        "pkpk03",
+        "pkpk04"
+      ],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "15m0s",
+      "tolerance": 30            // 容忍偏差30ms(更保守)
+      // 仅alpha.21
+    },
+
+    // ---- 全局模式选择器 ----
+    // 【版本差异】仅alpha.12-16和alpha.17有此配置
+    {
+      "type": "selector",
+      "tag": "GLOBAL",
+      "outbounds": [
+        "PROXY",
+        "DIRECT"
+      ],
+      "default": "PROXY",
+      "interrupt_exist_connections": false
+      // 仅alpha.12-16和alpha.17, alpha.21移除
+    },
+
+    // ---- 国内模式选择器 ----
+    // 【版本差异】仅alpha.12-16和alpha.17有此配置
+    {
+      "type": "selector",
+      "tag": "CN",
+      "outbounds": [
+        "DIRECT",
+        "PROXY"
+      ],
+      "default": "DIRECT",
+      "interrupt_exist_connections": false
+      // 仅alpha.12-16和alpha.17, alpha.21移除
+    },
+
+    // ---- 代理节点: CF-优选-Visa / pkpk01 ----
+    {
+      "tag": "🚀 CF-优选-Visa",    // alpha.21: "pkpk01"
+      "server": "CF优选域名IP",     // Cloudflare优选IP
+      "server_port": 443,
+      "type": "vless",             // VLESS协议
+      "uuid": "uuid",             // 用户UUID(需替换)
+      "domain_resolver": "alidns", // alpha.12-16/17有,alpha.21移除
+      "transport": {
+        "type": "ws",             // WebSocket传输
+        "path": "/路径",          // WebSocket路径(需替换)
+        "headers": {
+          "Host": "节点域名"       // 伪装Host(需替换)
+        }
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "节点域名", // SNI(需替换)
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"  // 伪装Chrome浏览器的TLS指纹
+        },
+        "alpn": [
+          "http/1.1"              // 伪装HTTP/1.1流量(alpha.12-16/17)
+        ]
+        // alpha.21移除alpn字段
+      }
+      // alpha.21新增字段:
+      // "packet_encoding": "xudp"  // 使用xudp协议(UDP over TCP优化)
+    },
+
+    // ---- 代理节点: CF-优选-DO / pkpk02 ----
+    {
+      "tag": "🚀 CF-优选-DO",      // alpha.21: "pkpk02"
+      "server": "CF优选域名IP",
+      "server_port": 443,
+      "type": "vless",
+      "uuid": "uuid",
+      "domain_resolver": "alidns",
+      "transport": {
+        "type": "ws",
+        "path": "/路径",
+        "headers": {
+          "Host": "节点域名"
+        }
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "节点域名",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "alpn": [
+          "http/1.1"
+        ]
+      }
+    },
+
+    // ---- pkpk03(仅alpha.21) ----
+    // 结构与pkpk01/02相同,只有tag不同
+    {
+      "type": "vless",
+      "tag": "pkpk03",
+      "server": "CF优选域名或IP",
+      "server_port": "端口",
+      "uuid": "节点uuid",
+      "tls": {
+        "enabled": true,
+        "server_name": "节点域名",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/路径",
+        "headers": {
+          "Host": "节点域名"
+        }
+      },
+      "packet_encoding": "xudp"
+      // 仅alpha.21
+    },
+
+    // ---- pkpk04(仅alpha.21) ----
+    {
+      "type": "vless",
+      "tag": "pkpk04",
+      "server": "CF优选域名或IP",
+      "server_port": "端口",
+      "uuid": "节点uuid",
+      "tls": {
+        "enabled": true,
+        "server_name": "节点域名",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/路径",
+        "headers": {
+          "Host": "节点域名"
+        }
+      },
+      "packet_encoding": "xudp"
+      // 仅alpha.21
+    }
+  ],
+
+  // ==================== 路由配置 ====================
+  "route": {
+    "default_domain_resolver": "alidns",  // alpha.21: "ali_dns"
+    
+    // ---- 路由规则 ----
+    "rules": [
+      // 规则1: QUIC 443 → 拒绝
+      // QUIC基于UDP, 在代理环境下容易失败且可能泄露信息
+      // 拒绝QUIC强制浏览器回退到TCP(HTTP/2或HTTP/1.1)
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          {
+            "protocol": "quic"    // QUIC协议
+          },
+          {
+            "port": 443           // 端口443
+          }
+        ],
+        "action": "reject"
+        // 三个版本均相同
+      },
+
+      // 规则2: DNS相关 → 劫持到sing-box内置DNS
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "port": 53             // 标准DNS端口
+          },
+          {
+            "protocol": "dns"      // DNS协议
+          }
+        ],
+        "action": "hijack-dns"    // 劫持DNS请求
+        // 【版本差异】alpha.21拆分为两条独立规则,不使用logical
+        // alpha.21格式: {"port": 53, "action": "hijack-dns"}, {"protocol": "dns", "action": "hijack-dns"}
+      },
+
+      // 规则3: 域名嗅探
+      // 对TLS/HTTP等流量进行SNI/Host嗅探,用于后续规则匹配
+      {
+        "action": "sniff"
+        // 【版本差异】alpha.21移除此规则
+      },
+
+      // 规则4: 小米路由器 → 直连
+      {
+        "domain_suffix": [
+          "miwifi.com"
+        ],
+        "outbound": "DIRECT"
+        // 【版本差异】alpha.21移除
+      },
+
+      // 规则5: Direct模式 → 全局直连
+      {
+        "clash_mode": [
+          "direct"
+        ],
+        "outbound": "DIRECT"
+        // 【版本差异】alpha.21中值改为"Direct"(首字母大写)
+      },
+
+      // 规则6: Global模式 → 全局代理
+      {
+        "clash_mode": [
+          "global"
+        ],
+        "outbound": "GLOBAL"     // alpha.12-16/17使用GLOBAL选择器
+        // alpha.21: "outbound": "PROXY"  // alpha.21直接使用PROXY
+        // 【版本差异】alpha.21中值改为"Global"
+      },
+
+      // 规则7: 私有IP → 直连
+      {
+        "ip_is_private": true,  // 匹配所有私有IP(192.168.x.x, 10.x.x.x等)
+        "outbound": "DIRECT"
+        // 三个版本均相同
+      },
+
+      // 规则8: FakeIP段 → 代理
+      // FakeIP必须走代理,因为虚假IP无法直接路由
+      {
+        "ip_cidr": [
+          "198.18.0.0/15"       // FakeIP地址段
+        ],
+        "outbound": "PROXY"
+        // 三个版本均相同
+      },
+
+      // 规则9: 广告规则集 → 拒绝
+      {
+        "rule_set": [
+          "geosite_adguard",
+          "geosite-category-ads-all"
+        ],
+        "action": "reject"
+        // 【版本差异】alpha.21移除此规则
+      },
+
+      // 规则10: 特定国内域名 → 直连
+      // 这些域名可能有国外CDN但国内可直连
+      {
+        "domain_suffix": [
+          "steamserver.net",     // Steam服务器
+          "zhihu.com",          // 知乎
+          "zhimg.com",          // 知乎图片CDN
+          "jd.com",             // 京东
+          "360buyimg.com",      // 京东图片CDN
+          "xfyun.cn"            // 讯飞云
+        ],
+        "outbound": "DIRECT"
+        // 【版本差异】alpha.21移除
+      },
+
+      // 规则11: 代理规则集 → 代理
+      {
+        "rule_set": [
+          "geosite-google",      // Google服务
+          "telegramip",          // Telegram IP
+          "proxy",               // 代理规则
+          "games",               // 游戏规则
+          "ai"                   // AI规则(ChatGPT等)
+        ],
+        "outbound": "PROXY"
+        // 【版本差异】alpha.21简化为["geosite-google", "proxy"]
+      },
+
+      // 规则12: 国内规则集 → 直连
+      {
+        "rule_set": [
+          "private",             // 私有域名
+          "cn",                  // 中国域名
+          // 【版本差异】alpha.12-16/17中"cnip"在规则13单独处理
+          "cnip",                // 中国IP
+          "microsoft-cn",        // 微软中国
+          "apple-cn",            // Apple中国
+          "google-cn",           // Google中国
+          "games-cn",            // 游戏中国
+          "networktest"          // 网络测试
+        ],
+        "outbound": "DIRECT"
+        // 【版本差异】alpha.12-16/17中cnip在单独规则,alpha.21合并到此
+      },
+
+      // 规则13: DNS解析(for IP规则匹配)
+      // 【版本差异】仅alpha.12-16和alpha.17有此规则
+      {
+        "action": "resolve"     // 对域名进行DNS解析后再匹配后续IP规则
+        // 仅alpha.12-16和alpha.17, alpha.21移除
+      },
+
+      // 规则14: 中国IP → 直连
+      // 【版本差异】仅alpha.12-16和alpha.17有此独立规则
+      {
+        "rule_set": "cnip",
+        "outbound": "DIRECT"
+        // 仅alpha.12-16和alpha.17, alpha.21合并到规则12
+      },
+
+      // 规则15: 指定App → 代理/直连
+      {
+        "package_name": [
+          // 强制代理的应用
+          "com.google.android.youtube",     // YouTube
+          "app.revanced.android.youtube",   // YouTube ReVanced
+          "org.telegram.messenger",         // Telegram
+          "org.telegram.messenger.beta"     // Telegram Beta
+        ],
+        "outbound": "PROXY"
+        // 【版本差异】alpha.21改为国内应用直连:
+        // "com.tencent.mm" - 微信
+        // "com.eg.android.AlipayGphone" - 支付宝
+        // "com.netease.cloudmusic" - 网易云音乐
+        // alpha.21: "outbound": "DIRECT"
+      }
+    ],
+
+    // ---- 规则集定义 ----
+    "rule_set": [
+      // --- 通用规则集(三个版本都有,但有差异) ---
+      
+      // geosite-category-ads-all: 广告域名
+      // 来源: SagerNet/sing-geosite
+      // 【版本差异】alpha.21移除此规则集
+      {
+        "tag": "geosite-category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "download_detour": "PROXY",        // 通过代理下载(alpha.21移除)
+        "update_interval": "48h"           // alpha.21: "24h0m0s"
+      },
+
+      // geosite_adguard: AdGuard过滤规则
+      // 来源: 217heidai/adblockfilters
+      // 【版本差异】alpha.21移除此规则集
+      {
+        "tag": "geosite_adguard",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblocksingbox.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // geosite-google: Google服务域名
+      {
+        "tag": "geosite-google",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-google.srs",
+        "download_detour": "PROXY",        // alpha.21移除
+        "update_interval": "48h"           // alpha.21: "24h0m0s"
+      },
+
+      // geosite-youtube: YouTube域名
+      // 【版本差异】仅alpha.12-16和alpha.17有此规则集
+      // (虽然定义了但路由规则中未使用)
+      {
+        "tag": "geosite-youtube",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-youtube.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+        // 仅alpha.12-16和alpha.17
+      },
+
+      // proxy: 需要代理的域名
+      // 来源: DustinWin/ruleset_geodata
+      // 【版本差异】alpha.21改用SagerNet的geosite-geolocation-!cn
+      {
+        "tag": "proxy",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/proxy.srs",
+        // alpha.21: "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-geolocation-!cn.srs"
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // games: 游戏域名
+      // 【版本差异】alpha.21移除此规则集
+      {
+        "tag": "games",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // ai: AI服务域名(ChatGPT/Claude等)
+      // 【版本差异】alpha.21移除此规则集
+      {
+        "tag": "ai",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ai.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // private: 私有域名
+      // 【版本差异】alpha.21改用SagerNet源
+      {
+        "tag": "private",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/private.srs",
+        // alpha.21: "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-private.srs"
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // cn: 中国域名
+      // 【版本差异】alpha.21改用SagerNet源
+      {
+        "tag": "cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cn.srs",
+        // alpha.21: "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs"
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // --- 以下规则集仅alpha.12-16和alpha.17有 ---
+      
+      // microsoft-cn: 微软中国CDN
+      {
+        "tag": "microsoft-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/microsoft-cn.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // apple-cn: Apple中国CDN
+      {
+        "tag": "apple-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/apple-cn.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // google-cn: Google中国
+      {
+        "tag": "google-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/google-cn.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // games-cn: 游戏中国
+      {
+        "tag": "games-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games-cn.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // networktest: 网络测试工具
+      {
+        "tag": "networktest",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/networktest.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // telegramip: Telegram IP段
+      {
+        "tag": "telegramip",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/telegramip.srs",
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      },
+
+      // cnip: 中国IP段
+      {
+        "tag": "cnip",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cnip.srs",
+        // alpha.21: "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs"
+        "download_detour": "PROXY",
+        "update_interval": "48h"
+      }
+    ],
+
+    // ---- 默认出站 ----
+    "final": "PROXY",  // 未命中任何规则时走代理(默认代理模式)
+    "auto_detect_interface": true  // 自动检测网络接口
+    // 三个版本均相同
+  },
+
+  // ==================== 实验性功能 ====================
+  "experimental": {
+    // ---- Clash API ----
+    // 提供与Clash兼容的API,可使用Clash面板管理
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",  // API监听地址
+      "external_ui": "ui",                      // 面板文件路径
+      "external_ui_download_url": "https://cdn.jsdelivr.net/gh/MetaCubeX/metacubexd@gh-pages/metacubexd.zip",
+      // 【版本差异】alpha.21移除此下载URL
+      "external_ui_download_detour": "PROXY",   // 面板下载走代理(alpha.21移除)
+      "secret": "kSDuU2WHyf72taGMdDS0ib6klwFVF5QIM4HGhS5f4Jw=",
+      // 【版本差异】alpha.21移除此密钥
+      "default_mode": "rule"                    // 默认模式: Rule(规则模式)
+      // alpha.21移除external_ui相关配置
+    },
+
+    // ---- 缓存文件 ----
+    // 持久化缓存,重启后保留FakeIP映射等
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",        // alpha.21: "./cache.db"
+      "cache_id": "cinchov",     // 缓存ID(alpha.21移除)
+      "store_fakeip": true,      // 持久化FakeIP映射
+      "store_dns": true          // 持久化DNS缓存(alpha.21新增?)
+    },
+
+    // ---- 统一延迟测试 ----
+    // 使用同一URL测试所有节点延迟
+    "urltest_unified_delay": true
+    // 三个版本均相同
+  }
+}
+
+/*
+================================================================
+版本演进总结(alpha.12-16 → alpha.17 → alpha.21)
+================================================================
+
+1. NTP配置:
+   - alpha.12-16/17: 有NTP时间同步
+   - alpha.21: 移除NTP,可能改用系统时间
+
+2. DNS服务器:
+   - alpha.12-16/17: 有local服务器,QUIC协议的阿里DNS
+   - alpha.21: 移除local,阿里DNS改为HTTPS协议
+
+3. DNS规则:
+   - alpha.12-16/17: 复杂规则(广告过滤/游戏/AI/ECS)
+   - alpha.21: 简化为cn/private/geosite-google/proxy四类
+
+4. TUN配置:
+   - alpha.12-16/17: mixed栈,无DNS劫持
+   - alpha.21: system栈,新增DNS劫持(dns_mode+dns_address)
+
+5. 出站节点:
+   - alpha.12-16/17: 2个节点(Visa/DO),选择器多(GLOBAL/CN)
+   - alpha.21: 4个节点(pkpk01-04),新增xudp,更简洁的选择器
+
+6. 路由规则:
+   - alpha.12-16/17: 详细规则(sniff/单独域名/多规则集)
+   - alpha.21: 精简规则(合并/移除冗余)
+
+7. 规则集来源:
+   - alpha.12-16/17: 混合源(DustinWin+SagerNet)
+   - alpha.21: 统一SagerNet官方源,更新间隔缩短为24h
+
+8. Clash API:
+   - alpha.12-16/17: 完整配置(含面板下载+密钥)
+   - alpha.21: 精简(移除下载URL和密钥)
+
+================================================================
+关键概念解释:
+================================================================
+
+1. FakeIP:
+   DNS对需要代理的域名返回198.18.0.0/15段的虚假IP,
+   实际TCP连接时通过域名匹配规则走代理。
+   优点: 防DNS泄露、避免DNS污染、减少一次DNS延迟。
+
+2. uTLS (uTLS指纹伪装):
+   模拟Chrome浏览器的TLS握手特征,
+   使代理流量看起来像正常浏览器流量,避免被GFW识别。
+
+3. ECS (EDNS Client Subnet):
+   DNS扩展,将客户端IP段告知DNS服务器,
+   使其返回就近的CDN节点。119.134.100.0/24是广东电信IP段。
+
+4. QUIC阻断:
+   QUIC基于UDP,代理软件处理困难,
+   直接拒绝QUIC/443强制浏览器回退到HTTP/2(TCP)。
+
+5. sniff (域名嗅探):
+   从TLS ClientHello的SNI或HTTP Host头提取域名,
+   用于后续规则匹配,不需要DNS解析。
+
+6. urltest自动测速:
+   定期探测节点延迟,自动切换到最优节点。
+   - tolerance: 新旧节点延迟差 < 此值时不切换
+   - interval: 测速间隔
+   - 新节点需比旧节点快tolerance值以上才切换
+
+================================================================
+潜在疑问解答:
+================================================================
+
+Q1: 为什么alpha.21移除QUIC DNS?
+A1: HTTPS DNS更稳定,QUIC在某些网络环境下可能被阻断,
+    HTTPS降级风险更小。
+
+Q2: alpha.21的🟢和🔵自动选择器有何区别?
+A2: 🟢(测速): interval=10min, tolerance=100ms,追求低延迟
+    🔵(稳定): interval=15min, tolerance=30ms,追求稳定性
+    实际使用建议选🔵,避免频繁切换。
+
+Q3: 为什么alpha.21移除广告过滤?
+A3: 可能转向浏览器扩展(如uBlock Origin)处理广告,
+    DNS层过滤容易产生误判且维护成本高。
+
+Q4: alpha.21的DNS劫持(dns_mode)是什么意思?
+A4: TUN模式下强制接管所有DNS请求(端口53),
+    统一使用sing-box的DNS配置,防止DNS泄漏。
+
+Q5: 为什么规则集从DustinWin切换到SagerNet?
+A5: SagerNet是sing-box官方维护的规则集,
+    更新更及时,分类更规范,避免第三方源不可用风险。
+
+================================================================
+*/

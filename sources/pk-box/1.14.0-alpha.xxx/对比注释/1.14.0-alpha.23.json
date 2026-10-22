@@ -1,0 +1,1953 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════╗
+ * ║  sing-box 1.14.0-alpha.23 配置详解 · 脱敏版本              ║
+ * ║  ────────────────────────────────────────────────────────   ║
+ * ║  所有密钥/UUID/端口/域名/密码已替换为占位符                 ║
+ * ║  逐行注释解释每个字段的含义、用途和常见问题                  ║
+ * ╚══════════════════════════════════════════════════════════════╝
+ *
+ * 文件格式: JSONC (JSON with Comments) — 实际使用需去掉注释
+ * 适用版本: sing-box 1.14.0-alpha.23 及相近版本
+ * 平台:     Android (SFA / sing-box 通用)
+ *
+ * 目录:
+ *   一、日志 (log)
+ *   二、DNS 模块 (dns)
+ *   三、时间同步 (ntp)
+ *   四、HTTP 客户端 (http_clients)
+ *   五、入站 (inbounds) — TUN + 本地代理
+ *   六、出站 (outbounds) — 6 种协议节点详解
+ *   七、路由 (route) — 规则引擎
+ *   八、实验性功能 (experimental)
+ */
+
+{
+  // ═══════════════════════════════════════════════════════════════
+  // 一、LOG · 日志配置
+  // ═══════════════════════════════════════════════════════════════
+  "log": {
+    /*
+     * level: 日志级别
+     *   trace  — 最详细，每个数据包都记录（调试用，极度臃肿）
+     *   debug  — 调试信息，显示规则匹配、DNS 查询过程
+     *   info   — 常规信息（推荐生产环境使用）
+     *   warn   — 仅警告和错误
+     *   error  — 仅错误
+     * 为什么选 trace: 排查问题时需要看每一步规则匹配和包流向
+     * 疑惑: trace 日志会非常大，日常用 info 就够了
+     */
+    "level": "trace",
+
+    /*
+     * timestamp: 每条日志是否带时间戳
+     * 回答: 定位问题时时间戳非常有用，建议开启
+     */
+    "timestamp": true
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 二、DNS · 域名解析模块
+  // ═══════════════════════════════════════════════════════════════
+  "dns": {
+    /*
+     * DNS 模块是 sing-box 的核心功能之一。它劫持所有 DNS 请求，
+     * 根据规则分流到不同 DNS 服务器，实现:
+     *   1. 国内域名 → 国内 DNS (防污染)
+     *   2. 国外域名 → 代理 DNS / FakeIP
+     *   3. 广告域名 → 直接拒绝
+     */
+
+    "servers": [
+      // ── DNS 服务器列表 ────────────────────────────────────────
+
+      {
+        /*
+         * local: 本地 DNS 服务器
+         * 使用系统默认 DNS 或 /etc/hosts 解析
+         * neighbor_domain: 局域网域名后缀，走本地解析
+         * 说明: .local 是 mDNS 域名, .lan 是常见局域网后缀
+         * 疑惑: 为什么不直接用系统 DNS？
+         * 回答: 因为 TUN 模式劫持了所有 DNS，系统 DNS 已被绕过，
+         *       需要在这里重新指向系统 DNS
+         */
+        "type": "local",
+        "tag": "local",
+        "neighbor_domain": [".local", ".lan"]
+      },
+
+      {
+        /*
+         * dns-udp: 国内常规 DNS (UDP 协议)
+         * 114.114.114.114 是国内老牌公共 DNS
+         * detour: DIRECT — DNS 查询直连，不走代理
+         * 说明: 国内域名用国内 DNS 解析，返回最近的 CDN 节点
+         * 回答: 为什么不用 DoH/DoT？
+         *       UDP 最简单、最快，不需要额外 TLS 握手
+         *       国内 DNS 本身不受干扰，UDP 足够
+         */
+        "type": "udp",
+        "tag": "dns-udp",
+        "detour": "DIRECT",
+        "server": "114.114.114.114",
+        "server_port": 53
+      },
+
+      {
+        /*
+         * fakeip: 虚拟 IP DNS
+         * 为指定域名返回 198.18.0.0/15 段的虚拟 IP
+         * 核心原理:
+         *   1. DNS 查询 google.com → 返回 198.18.0.x (假 IP)
+         *   2. App 连接 198.18.0.x → TUN 捕获
+         *   3. sing-box 根据假 IP 反查真实域名 → 走代理
+         *
+         * 优势: 避免 DNS 泄露，所有代理流量统一处理
+         * 问题: 只支持 A/AAAA 查询，不支持 HTTPS/SVCB 类型
+         *       非 A/AAAA 查询会报错 "only IP queries supported"
+         *       需要用 query_type 过滤规则避免此问题
+         * 回答: 为什么用 198.18.0.0/15？
+         *       这是 RFC 2544 基准测试专用段，不会和真实 IP 冲突
+         */
+        "type": "fakeip",
+        "tag": "fakeip",
+        "inet4_range": "198.18.0.0/15"
+      },
+
+      {
+        /*
+         * adguard-dns: 代理 DNS (通过 VPS 上的 AdGuard Home)
+         * 走 PROXY 代理链，DNS 查询不泄露
+         * server: VPS IP — AdGuard Home 监听在此
+         * 说明: AdGuard Home 自带广告过滤和 DNS 缓存
+         * 疑惑: 为什么用 VPS 的 AdGuard 而不是公共 DNS？
+         * 回答: 1) DNS 走代理不泄露 2) AdGuard 自带去广告规则
+         *       3) 统一 DNS 出口，避免 CDN 地域偏差
+         */
+        "type": "udp",
+        "tag": "adguard-dns",
+        "detour": "PROXY",
+        "server": "192.0.2.1",          // ← 已脱敏: 替换为你的 VPS IP
+        "server_port": 53
+      }
+    ],
+
+    "rules": [
+      // ── DNS 规则列表 (从上到下匹配，命中即停止) ────────────────
+
+      {
+        /*
+         * 规则 1: 拒绝 Google 信标域名
+         * beacons.gvt2.com 是 Google 遥测/追踪域名
+         * action: reject — DNS 返回 REFUSED，阻止应用上报数据
+         */
+        "domain_suffix": [
+          "beacons.gvt2.com",
+          "beacons2.gvt2.com",
+          "beacons3.gvt2.com"
+        ],
+        "action": "reject"
+      },
+
+      {
+        /*
+         * 规则 2: 国内域名 → 国内 DNS
+         * rule_set: cn — 引用远程规则集，包含所有中国大陆域名
+         * 说明: 规则集从 jsDelivr CDN 自动下载更新
+         * 回答: 为什么国内域名不用 fakeip？
+         *       国内域名需要真实 IP 才能得到最近 CDN 节点，
+         *       fakeip 返回假 IP 后走代理反而变慢
+         */
+        "rule_set": "cn",
+        "server": "dns-udp"
+      },
+
+      {
+        /*
+         * 规则 3: 私有/内网域名 → 国内 DNS
+         * private 规则集: 企业内部域名、局域网服务等
+         */
+        "rule_set": "private",
+        "server": "dns-udp"
+      },
+
+      {
+        /*
+         * 规则 4: .cn /.com.cn 域名 → 国内 DNS
+         * 这些就是中国域名，简单粗暴地走国内 DNS
+         * 说明: 作为 rule_set=cn 的补充兜底
+         */
+        "domain_suffix": [".cn", ".com.cn"],
+        "server": "dns-udp"
+      },
+
+      {
+        /*
+         * 规则 5: Steam 局域网缓存
+         * lancache.steamcontent.com 是局域网 Steam 缓存服务器
+         * 走 local DNS 让内网 DNS 返回局域网 IP
+         */
+        "domain_suffix": "lancache.steamcontent.com",
+        "server": "local"
+      },
+
+      {
+        /*
+         * 规则 6: 局域网域名 → 本地 DNS
+         * 常见局域网顶级域和保留域名
+         * 解释: corp 企业内网, internal 内部服务, home 家庭网络
+         *       example.com 是 IANA 保留的示例域名
+         */
+        "domain_suffix": [
+          "local", "lan", "home", "internal", "corp", "example.com"
+        ],
+        "server": "local"
+      },
+
+      {
+        /*
+         * 规则 7: Windows 网络连接状态检测
+         * msftncsi.com / msftconnecttest.com — Windows 用来检测
+         * 网络是否通的域名，走本地 DNS 即可
+         */
+        "domain_suffix": ["msftncsi.com", "msftconnecttest.com"],
+        "server": "local"
+      },
+
+      {
+        /*
+         * 规则 8: 游戏/CDN/Google 服务 → FakeIP
+         * 这些域名的流量必须走代理
+         * 包含: Steam/Epic/战网等游戏平台 + Google Play/FCM 等
+         * 说明: googleusercontent.com 是 Google CDN，包含大量
+         *       Firebase/FCM/App 资源，不走代理可能被干扰
+         * 疑惑: 为什么只匹配 A/AAAA？
+         * 回答: fakeip 不支持 HTTPS/SVCB 类型查询，加了过滤防止报错
+         */
+        "query_type": ["A", "AAAA"],
+        "domain_suffix": [
+          "steamcontent.com",
+          "steamserver.net",
+          "epicgames.com",
+          "gog.com",
+          "battle.net",
+          "blizzard.com",
+          "origin.com",
+          "ea.com",
+          "ubisoft.com",
+          "rockstargames.com",
+          "play.google.com",
+          "ggpht.com",
+          "googleusercontent.com",
+          "android.com",
+          "app-measurement.com",
+          "firebaselogging.googleapis.com",
+          "firebaselogging-pa.googleapis.com"
+        ],
+        "server": "fakeip"
+      },
+
+      {
+        /*
+         * 规则 9: Google/YouTube/社交 → FakeIP
+         * 这些是明确需要代理的国外服务
+         * 解释: ggpht.com = Google 用户内容 CDN
+         *       ytimg.com = YouTube 图片/缩略图 CDN
+         *       googlevideo.com = YouTube 视频流 CDN
+         *       fbcdn.net/cdninstagram.com = Meta 系 CDN
+         */
+        "query_type": ["A", "AAAA"],
+        "domain_suffix": [
+          "google.com", "google.com.hk", "googleapis.com",
+          "gstatic.com", "ggpht.com", "youtube.com", "ytimg.com",
+          "googlevideo.com", "twitter.com", "twimg.com",
+          "facebook.com", "fbcdn.net",
+          "instagram.com", "cdninstagram.com"
+        ],
+        "server": "fakeip"
+      },
+
+      {
+        /*
+         * 规则 10: 规则集匹配 → FakeIP
+         * 引用多个远程规则集，统一走 FakeIP
+         * 解释各规则集:
+         *   telegram      — Telegram 所有域名
+         *   youtube       — YouTube 域名
+         *   instagram     — Instagram 域名
+         *   Proxy         — 非中国域名的 geoip 规则 (geosite-geolocation-!cn)
+         *   gfw           — GFW 已知封锁域名列表
+         *   ai            — AI 服务域名 (ChatGPT, Claude 等)
+         *   games         — 游戏平台域名
+         *   GlobalMedia   — 全球流媒体 (Netflix, Disney+, Spotify 等)
+         */
+        "query_type": ["A", "AAAA"],
+        "rule_set": [
+          "telegram", "youtube", "instagram",
+          "Proxy", "gfw", "ai", "games", "GlobalMedia"
+        ],
+        "server": "fakeip"
+      },
+
+      {
+        /*
+         * 规则 11: 广告规则集 → 国内 DNS
+         * geosite_adguard + geosite-category-ads-all 是广告域名
+         * server: dns-udp — 用国内 DNS 解析广告域名
+         * 疑惑: 为什么不直接 reject 广告域名？
+         * 回答: 这个规则只是路由 DNS 到国内服务器。
+         *       真正的 DNS 层面拒绝在规则 17 用 predefined NOERROR
+         *       这样做的好处：即使广告域名没被完整屏蔽，
+         *       至少用国内 DNS 解析，不影响代理 DNS 性能
+         */
+        "rule_set": ["geosite_adguard", "geosite-category-ads-all"],
+        "server": "dns-udp"
+      },
+
+      {
+        /*
+         * 规则 12: Google/YouTube 非 A/AAAA → 代理 DNS
+         * 当 query_type 不是 A/AAAA 时 (如 HTTPS/SVCB 查询)，
+         * 规则 9/10 不会匹配（它们加了 query_type 过滤）
+         * 查询会落到这里，走代理 DNS 获取正确的 HTTPS 记录
+         * 解释: Chrome 浏览器会同时发送 A + HTTPS 类型的 DNS 查询
+         *       HTTPS 记录包含 ECH 公钥和 HTTP/3 支持信息
+         * 回答: 为什么不走 fakeip？fakeip 不支持 HTTPS 查询
+         */
+        "rule_set": ["geosite-google", "geosite-youtube"],
+        "server": "adguard-dns"
+      },
+
+      {
+        /*
+         * 规则 13: GlobalMedia 非 A/AAAA → 国内 DNS
+         * 疑惑: 为什么走国内 DNS 而不是代理 DNS？
+         * 回答: GlobalMedia 的非 A/AAAA 查询量可能很大
+         *       (流媒体的 SVCB/HTTPS 记录)，走国内 DNS 更快
+         *       A/AAAA 查询已被规则 10 的 fakeip 处理了
+         */
+        "rule_set": "GlobalMedia",
+        "server": "dns-udp"
+      },
+
+      {
+        /*
+         * 规则 14: Steam → FakeIP (仅 A/AAAA，有指定 query_type)
+         * 这是一个针对性规则，steamcontent.com 需要走代理
+         * 说明: Steam 下载走 CDN，fakeip 确保通过代理连接
+         * 疑惑: 规则 8 已经包含 steamcontent.com 了？
+         * 回答: 是的，这个规则是冗余的，可以被规则 8 覆盖
+         *       保留它可能是为了确保 query_type 过滤生效
+         */
+        "query_type": ["A", "AAAA"],
+        "domain_suffix": "steamcontent.com",
+        "server": "fakeip"
+      },
+
+      {
+        /*
+         * 规则 15: 拒绝所有非 A/AAAA 查询
+         * invert: true — 取反，query_type 不是 A 或 AAAA 的都被拒绝
+         * 说明: DNS 查询除了 A(IPv4) 和 AAAA(IPv6) 外，
+         *       还有 MX(邮件), TXT(文本), NS(域名服务器),
+         *       HTTPS/SVCB(HTTP/3), PTR(反向解析) 等类型
+         *       对于代理场景，只需要 IP 地址，其他类型都可以拒绝
+         * 回答: 为什么拒绝非 A/AAAA？
+         *       1) 减少 DNS 查询量，提升速度
+         *       2) 避免 DNS 隧道泄露 (有人用 TXT 记录传数据)
+         *       3) 不需要 MX/NS 等记录
+         * 注意: 这个规则在位置 15，前面的规则如果指定了 server
+         *       且不限制 query_type，会先被匹配而不会到这里
+         */
+        "query_type": ["A", "AAAA"],
+        "invert": true,
+        "action": "reject"
+      },
+
+      {
+        /*
+         * 规则 16: proxy/games/ai → FakeIP (rewrite_ttl)
+         * rewrite_ttl: 300 — 将 DNS TTL 重写为 300 秒 (5 分钟)
+         * 说明: 覆盖原始 DNS TTL，控制 DNS 缓存时间
+         *       这些域名走代理，TTL 不需要太长
+         * 疑惑: 规则 10 已经包含 games/ai 了？
+         * 回答: 规则 10 用的是 rule_set 大写 "Proxy" (geosite 源)
+         *       规则 16 用的是 rule_set 小写 "proxy" (DustinWin 源)
+         *       它们是不同的规则集！games 和 ai 在两处都有，
+         *       但这个规则多了 rewrite_ttl: 300
+         *       由于规则 10 在 16 前面，games/ai 实际已被规则 10 匹配
+         *       rewrite_ttl 对 games/ai 不会生效
+         *       只有小写 proxy 的域名会享受到 rewrite_ttl
+         */
+        "query_type": ["A", "AAAA"],
+        "rule_set": ["proxy", "games", "ai"],
+        "server": "fakeip",
+        "rewrite_ttl": 300
+      },
+
+      {
+        /*
+         * 规则 17: DNS 层面屏蔽广告/追踪/DNS 泄露
+         * action: predefined + rcode: NOERROR — 返回"域名存在但无记录"
+         * 说明: 这是 DNS 层面的广告屏蔽，不是连接层面
+         *       NOERROR + 无回答记录 = 应用收到"域名解析成功但没 IP"
+         *       效果等同于域名被 DNS 层面屏蔽
+         * 规则集解释:
+         *   httpDNS   — 阻止 App 自建 HTTP DNS 绕过系统 DNS (如腾讯云HTTPDNS)
+         *   DNSreject — AdGuard SDN 过滤器的 DNS 屏蔽规则
+         *   Ads       — 通用广告规则集
+         */
+        "rule_set": ["httpDNS", "DNSreject", "Ads"],
+        "action": "predefined",
+        "rcode": "NOERROR"
+      },
+
+      {
+        /*
+         * 规则 18: 私有 + Filter → 国内 DNS
+         * Filter 规则集包含不需要走 fakeip 的域名
+         * (如国内 CDN、需要真实 IP 的服务)
+         */
+        "rule_set": ["private", "Filter"],
+        "server": "dns-udp"
+      },
+
+      {
+        /*
+         * 规则 19: 拒绝 Google 广告/追踪域名
+         * 连接层面的 DNS 拒绝 (不是 predefined)
+         * doubleclick.net — Google 旗下的广告平台
+         * googlesyndication.com — Google AdSense 广告分发
+         * googleadservices.com — Google 广告服务
+         * adservice.google.com — Google 广告
+         * addthis.com — 社交分享追踪
+         * adnxs.com — AppNexus 广告交易平台
+         * adsrvr.org — The Trade Desk 广告平台
+         * casalemedia.com — Casale Media 广告
+         * rubiconproject.com — Rubicon 广告
+         * openx.net — OpenX 广告
+         */
+        "domain": [
+          "*.doubleclick.net",
+          "*.googlesyndication.com",
+          "*.googleadservices.com",
+          "*.adservice.google.com",
+          "*.addthis.com",
+          "*.adnxs.com",
+          "*.adsrvr.org",
+          "*.casalemedia.com",
+          "*.rubiconproject.com",
+          "*.openx.net"
+        ],
+        "action": "reject"
+      },
+
+      {
+        /*
+         * 规则 20: 正则拒绝广告/追踪域名
+         * domain_regex: 用正则匹配域名
+         * 匹配以 ad/ads/advert/banner/sponsor/popup/tracker/analytics
+         * 开头的域名，以及包含 doubleclick/googleadservices/googlesyndication 的域名
+         * 说明: 正则匹配开销较大，放在具体域名规则后面
+         */
+        "domain_regex": "^(ad|ads|advert|banner|sponsor|popup|tracker|analytics)\\.|doubleclick\\.|googleadservices\\.|googlesyndication\\.",
+        "action": "reject"
+      },
+
+      {
+        /*
+         * 规则 21: 广告规则集 → DNS 拒绝
+         * 这是 DNS 层面的 action: reject (不是 predefined)
+         * 说明: 针对 geosite_adguard 和 geosite-category-ads-all
+         *       规则集的全面 DNS 封锁
+         *       前面的规则 11 是把这些域名路由到国内 DNS，
+         *       这里是 DNS 层面强制拒绝
+         * 疑惑: 和规则 17 有什么区别？
+         * 回答: 规则 17 用 predefined NOERROR (无记录)
+         *       规则 21 用 reject (REFUSED)
+         *       NOERROR 更隐蔽，REFUSED 更明确
+         *       两层保护，确保广告域名无法解析
+         */
+        "rule_set": ["geosite_adguard", "geosite-category-ads-all"],
+        "action": "reject"
+      },
+
+      {
+        /*
+         * 规则 22: 拒绝特殊 DNS 查询类型
+         * SVCB/HTTPS: HTTP/3 和 ECH 的服务绑定记录
+         * PTR: 反向 DNS 查询 (IP → 域名)
+         * 说明: SVCB/HTTPS 记录通常用于 HTTP/3 协商和 ECH
+         *       在代理场景下，这些记录的用处有限
+         *       PTR 查询多为局域网反查，不需要
+         * 疑惑: 拒绝 SVCB 会不会影响网站访问？
+         * 回答: 不会。浏览器获取不到 SVCB 记录会自动降级，
+         *       使用传统的 HTTP/2 或 HTTP/1.1 连接
+         */
+        "query_type": ["SVCB", "HTTPS", "PTR"],
+        "action": "reject"
+      }
+    ],
+
+    /*
+     * final: 兜底 DNS 服务器
+     * 所有未被上述规则匹配的 DNS 查询最终来这里
+     * 走 adguard-dns (VPS 上的 AdGuard Home)
+     * 说明: 确保任何"漏网"的域名都通过代理 DNS 解析
+     */
+    "final": "adguard-dns",
+
+    /*
+     * reverse_mapping: 反向域名映射
+     * DNS 解析后存储 IP→域名 的反向映射
+     * 用途: 当应用直接用 IP 连接时(不走 DNS)，sing-box 可以
+     *       通过 IP 反查域名，从而匹配域名规则
+     * 说明: 这很重要！有些应用会缓存 IP 或直接用 IP 直连
+     *       开启后这些流量也能被正确分流
+     */
+    "reverse_mapping": true,
+
+    /*
+     * strategy: DNS 解析策略
+     * ipv4_only — 只请求 A 记录 (IPv4)
+     * 可选: prefer_ipv4, prefer_ipv6, ipv4_only, ipv6_only
+     * 说明: IPv6 在国内支持有限，用 ipv4_only 避免不必要的
+     *       AAAA 查询，减少 DNS 开销
+     * 回答: 为什么不选 prefer_ipv4？
+     *       有时候 AAAA 查询会很慢，ipv4_only 干脆不查 IPv6
+     */
+    "strategy": "ipv4_only",
+
+    /*
+     * timeout: DNS 查询超时时间
+     * 3 秒 — 比默认的 10 秒更激进
+     * 说明: 超时短意味着失败更快、体验更好
+     *       但也可能让慢的 DNS 服务器被误判为失败
+     */
+    "timeout": "3s",
+
+    /*
+     * cache_capacity: DNS 缓存容量 (LRU)
+     * 256000 条 — 较大容量，适合长期运行
+     * 说明: 缓存命中率高可以减少 DNS 查询次数
+     *       256K × 约 200 字节/条 ≈ 50MB 内存
+     * 疑惑: 会不会占用太多内存？
+     * 回答: 256K 的最大值是理论上限，实际缓存量取决于
+     *       访问的域名种类数，一般不会达到上限
+     */
+    "cache_capacity": 256000,
+
+    /*
+     * optimistic: 乐观 DNS 缓存
+     * 当缓存条目过期但仍在容忍窗口内时，
+     * 先返回过期结果，同时后台刷新
+     * 效果: 减少 DNS 查询延迟，用户体验更流畅
+     * 疑惑: 会不会返回过时的 IP？
+     * 回答: 可能，但大多数域名的 IP 不会频繁变动
+     *       CDN 域名的 IP 虽然变化快，但旧的 IP 通常仍然可用
+     */
+    "optimistic": true
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 三、NTP · 时间同步
+  // ═══════════════════════════════════════════════════════════════
+  "ntp": {
+    /*
+     * 为什么代理需要 NTP？
+     * 很多加密协议依赖准确的时间:
+     *   - TLS 证书验证需要准确时间
+     *   - Shadowsocks 2022 的 AEAD 加密依赖时间戳
+     *   - Reality 协议的短 ID 验证
+     * 手机时间不准会导致协议握手失败
+     */
+    "enabled": true,
+    "interval": "30m0s",                  // 每 30 分钟同步一次
+    "server": "ntp.aliyun.com",           // 阿里云 NTP 服务器
+    "server_port": 123,                   // NTP 标准端口
+    "detour": "DIRECT"                    // 直连不同步，避免时间偏差
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 四、HTTP_CLIENTS · HTTP 客户端配置
+  // ═══════════════════════════════════════════════════════════════
+  "http_clients": [
+    {
+      /*
+       * HTTP 客户端用于下载远程规则集
+       * tag: default — 被 rule_set 的 http_client 字段引用
+       * version: 2 — HTTP/2，支持多路复用
+       * detour: PROXY — 下载规则集也走代理 (因为 GitHub 等被墙)
+       * stream_receive_window: 0 — 使用默认值，0 表示不限制
+       * connection_receive_window: 0 — 同上
+       * 疑惑: 为什么规则集下载要走代理？
+       * 回答: 规则集 URL 如 raw.githubusercontent.com 在国内
+       *       可能访问不稳定，走代理确保能正常更新
+       */
+      "tag": "default",
+      "version": 2,
+      "detour": "PROXY",
+      "stream_receive_window": 0,
+      "connection_receive_window": 0
+    }
+  ],
+
+  // ═══════════════════════════════════════════════════════════════
+  // 五、INBOUNDS · 入站配置
+  // ═══════════════════════════════════════════════════════════════
+  "inbounds": [
+    {
+      /*
+       * TUN 入站 — 最核心的入站方式
+       * 创建一个虚拟网卡，捕获设备所有流量
+       * type: tun — 虚拟网卡模式
+       * tag: tun-in — 标识符，路由规则可以引用
+       * mtu: 1500 — 最大传输单元，与标准以太网一致
+       * address: 10.8.0.1/24 — TUN 设备的 IP 地址
+       *
+       * dns_mode: hijack — 劫持 DNS
+       *   所有发往任何 DNS 服务器的 UDP 53 端口流量
+       *   都会被重定向到 dns_address
+       *
+       * dns_address: 10.8.0.2 — 虚拟 DNS 服务器地址
+       *   应用看到这个 DNS 服务器，实际由 sing-box 的 DNS 模块处理
+       *
+       * auto_route: true — 自动添加路由规则
+       *   设置默认网关为 TUN 设备，所有流量经过 TUN
+       *
+       * strict_route: true — 严格路由模式
+       *   防止流量绕过 TUN (Android 上很重要)
+       *
+       * stack: system — 使用系统网络栈
+       *   可选: system / gvisor / mixed
+       *   system 性能最好但依赖系统，gvisor 更独立但性能差一些
+       */
+      "type": "tun",
+      "tag": "tun-in",
+      "mtu": 1500,
+      "address": "10.8.0.1/24",
+      "dns_mode": "hijack",
+      "dns_address": "10.8.0.2",
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system"
+    },
+
+    {
+      /*
+       * mixed 入站 — HTTP + SOCKS5 混合代理
+       * 本地端口 7890，其他应用可以设置代理为 127.0.0.1:7890
+       * 说明: 配合 TUN 模式使用时，这个主要用于调试
+       *       或者给不支持系统代理的应用单独设置
+       */
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+    },
+
+    {
+      /*
+       * HTTP 入站 — 纯 HTTP 代理
+       * 端口 7891
+       */
+      "type": "http",
+      "tag": "http-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7891
+    },
+
+    {
+      /*
+       * SOCKS5 入站 — 纯 SOCKS5 代理
+       * 端口 7892
+       */
+      "type": "socks",
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7892
+    },
+
+    {
+      /*
+       * redirect 入站 — 透明代理 (iptables REDIRECT)
+       * 端口 7893
+       * 说明: 配合 iptables 规则做透明代理
+       *       Android 上主要用 TUN，这个作为备用
+       */
+      "type": "redirect",
+      "tag": "redirect-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7893
+    }
+  ],
+
+  // ═══════════════════════════════════════════════════════════════
+  // 六、OUTBOUNDS · 出站配置 (6 种协议节点)
+  // ═══════════════════════════════════════════════════════════════
+  "outbounds": [
+    /*
+     * DIRECT: 直连出站
+     * 所有标记为 DIRECT 的流量直接发出，不经过任何代理
+     * domain_resolver: dns-udp — 直连出站需要用国内 DNS 解析域名
+     */
+    {
+      "type": "direct",
+      "tag": "DIRECT",
+      "domain_resolver": "dns-udp"
+    },
+
+    /*
+     * PROXY: 代理选择器
+     * type: selector — 手动/自动选择使用哪个节点
+     * outbounds: 可选的出站列表
+     *   🟢 自动-测速 — 自动选最快的节点
+     *   🔵 自动-稳定 — 自动选最稳定的节点
+     *   pkpk01~06 — 手动指定某个节点
+     *   DIRECT — 直连 (兜底)
+     * default: 🟢 自动-测速 — 默认用自动测速选最快的
+     * 说明: 可以在 Clash 面板里手动切换
+     */
+    {
+      "type": "selector",
+      "tag": "PROXY",
+      "outbounds": [
+        "🟢 自动-测速",
+        "🔵 自动-稳定",
+        "pkpk01", "pkpk02", "pkpk03",
+        "pkpk04", "pkpk05", "pkpk06",
+        "DIRECT"
+      ],
+      "default": "🟢 自动-测速"
+    },
+
+    /*
+     * 🟢 自动-测速: URL 测试选择器
+     * 定期测试每个节点的延迟，自动选最快的
+     * url: http://www.gstatic.com/generate_204
+     *   这是 Google 的连通性检测页面，全球 CDN 加速
+     *   返回 HTTP 204 No Content，响应极快 (空响应体)
+     * interval: 10m — 每 10 分钟测一次
+     * tolerance: 100ms — 容差 100ms
+     *   如果当前节点和新最快节点差距在 100ms 内，不切换
+     *   避免频繁切换导致连接断开
+     * idle_timeout: 30m — 连续 30 分钟无流量后断开节点
+     * 疑惑: 为什么用 gstatic.com 测速？
+     * 回答: Google 的 generate_204 是最快的测速 URL，
+     *       响应体为空，全球 CDN，不会被墙 (直连也能访问)
+     */
+    {
+      "type": "urltest",
+      "tag": "🟢 自动-测速",
+      "outbounds": [
+        "pkpk01", "pkpk02", "pkpk03",
+        "pkpk04", "pkpk05", "pkpk06"
+      ],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "10m0s",
+      "tolerance": 100,
+      "idle_timeout": "30m0s"
+    },
+
+    /*
+     * 🔵 自动-稳定: URL 测试选择器 (稳定版)
+     * 与自动-测速类似，但更注重稳定性
+     * interval: 15m — 测速间隔更长
+     * tolerance: 30ms — 容差更小 (30ms vs 100ms)
+     *   意味着只有明显更快的节点才会被切换
+     * idle_timeout: 1h — 空闲超时 1 小时 (更长)
+     * 说明: 这个选择器切换更保守，适合追求稳定的场景
+     */
+    {
+      "type": "urltest",
+      "tag": "🔵 自动-稳定",
+      "outbounds": [
+        "pkpk01", "pkpk02", "pkpk03",
+        "pkpk04", "pkpk05", "pkpk06"
+      ],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "15m0s",
+      "tolerance": 30,
+      "idle_timeout": "1h0m0s"
+    },
+
+    /*
+     * GLOBAL: 全局模式选择器
+     * 在 Clash 面板中手动切换到"全局模式"
+     * 所有流量走 PROXY
+     */
+    {
+      "type": "selector",
+      "tag": "GLOBAL",
+      "outbounds": ["PROXY", "DIRECT"],
+      "default": "PROXY"
+    },
+
+    /*
+     * CN: 中国模式选择器
+     * 在 Clash 面板中手动切换到"中国模式"
+     * 所有流量走 DIRECT
+     */
+    {
+      "type": "selector",
+      "tag": "CN",
+      "outbounds": ["DIRECT", "PROXY"],
+      "default": "DIRECT"
+    },
+
+    /*
+     * Final: 最终兜底出站
+     * route.final 指向这个出站，用于所有未被规则匹配的流量
+     * default: PROXY — 未知流量默认走代理 (安全策略)
+     */
+    {
+      "type": "selector",
+      "tag": "Final",
+      "outbounds": ["PROXY", "DIRECT", "REJECT-DROP"],
+      "default": "PROXY"
+    },
+
+    /*
+     * REJECT-DROP: 拒绝并丢弃
+     * 不返回任何响应，直接丢弃数据包
+     * 比 reject 更隐蔽 (不发送 RST)
+     */
+    {
+      "type": "block",
+      "tag": "REJECT-DROP"
+    },
+
+    // ─── 节点 1: VLESS + Reality + XTLS Vision ─────────────────
+    {
+      /*
+       * pkpk01: VLESS Reality XTLS-Vision
+       * 协议层级:
+       *   VLESS (传输层) → XTLS-Vision (流控) → Reality (TLS伪装)
+       *
+       * 为什么这是最强的节点:
+       *   1. Reality — 偷取 addons.mozilla.org 的真实 TLS 指纹
+       *      DPI 看到的是"你在访问 Mozilla 官网"
+       *   2. XTLS-Vision — 识别并跳过 TLS 加密流量，
+       *      只处理真实数据，减少加解密开销
+       *   3. uTLS fingerprint: chrome — 模拟 Chrome 浏览器的 TLS 握手
+       *
+       * connect_timeout: 5s — 连接超时
+       * tcp_fast_open: true — TCP 快速打开，跳过一次握手
+       * domain_resolver: dns-udp — 用国内 DNS 解析服务器地址
+       *   疑惑: 为什么要用国内 DNS 解析节点服务器？
+       *   回答: 节点域名用国内 DNS 解析可以得到离你最近的 IP
+       *         (如果节点用了 CDN 中转的话)
+       *
+       * flow: xtls-rprx-vision — XTLS 流控模式
+       *   这是 VLESS 最推荐的流控模式，抗封锁能力最强
+       *   XTLS 识别 TLS 流量并原样转发，不进行二次加密
+       *   外部看到的就是正常的 HTTPS 流量
+       *
+       * packet_encoding: xudp — XUDP 封包模式
+       *   支持 UDP over TCP，用于语音/视频通话
+       *   说明: 不用 xudp 的话 VLESS 只能传 TCP
+       */
+      "type": "vless",
+      "tag": "pkpk01",
+      "connect_timeout": "5s",
+      "tcp_fast_open": true,
+      "domain_resolver": "dns-udp",
+      "server": "your-server.example.com",    // ← 已脱敏
+      "server_port": 443,                     // ← 已脱敏
+      "uuid": "xxxxxxxx-xxxx-xxxx-xxxxxxxxxxxx", // ← 已脱敏
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        /*
+         * server_name: Reality 伪装目标域名
+         * addons.mozilla.org — Mozilla Firefox 插件网站
+         * 说明: 这个域名有以下特点:
+         *   1. 真实存在的网站，TLS 指纹完整
+         *   2. 全球 CDN，访问量大，你的流量混在其中
+         *   3. 不会被墙 (合规网站)
+         * 疑惑: 可以换成其他域名吗？
+         * 回答: 可以，但必须满足: 1) 境外网站 2) 支持 TLS 1.3
+         *       3) 流量大 (你的流量混进去不明显)
+         *       常用: www.microsoft.com, www.apple.com,
+         *       www.amazon.com, addons.mozilla.org
+         */
+        "server_name": "addons.mozilla.org",
+        "utls": {
+          "enabled": true,
+          /*
+           * fingerprint: chrome
+           * 模拟 Chrome 浏览器的 TLS 握手指纹
+           * 可选: chrome, firefox, safari, ios, android, edge, 360, qq
+           * 说明: chrome 是全球使用率最高的浏览器，模拟它最安全
+           *       firefox 指纹也很常见但用户量较小
+           */
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          /*
+           * public_key: Reality 协议公钥
+           * 由服务端生成，客户端用来加密握手信息
+           * 说明: Reality 的工作原理:
+           *   1. 服务端生成临时密钥对
+           *   2. 客户端用公钥加密"短 ID"
+           *   3. 服务端解密验证短 ID
+           *   4. 验证通过后建立连接
+           *   整个过程看起来像普通的 TLS 1.3 握手
+           */
+          "public_key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" // ← 已脱敏
+        }
+      },
+      /*
+       * packet_encoding: xudp
+       * Xray 的 UDP over TCP 实现
+       * 说明: 大多数代理协议只支持 TCP，xudp 可以在 VLESS 上传输 UDP
+       *       用于 VoIP/视频通话/游戏等 UDP 应用
+       * 疑惑: 为什么不用默认的 packet_encoding？
+       * 回答: sing-box 默认不使用任何 packet_encoding
+       *       不加这个的话，VLESS 出站无法传输 UDP 流量
+       *       Telegram/WhatsApp 通话会失败
+       */
+      "packet_encoding": "xudp"
+    },
+
+    // ─── 节点 2: VLESS + Reality + gRPC ────────────────────────
+    {
+      /*
+       * pkpk02: VLESS Reality gRPC
+       * 与 pkpk01 的核心区别:
+       *   transport: grpc — 用 gRPC 协议传输
+       *   gRPC 基于 HTTP/2，流量特征类似微服务调用
+       *
+       * gRPC 的优势:
+       *   1. HTTP/2 多路复用，一个连接承载多个流
+       *   2. 流量特征像 gRPC 微服务 (Google/Netflix 内部用)
+       *   3. 支持双向流，延迟低
+       *
+       * gRPC 的劣势:
+       *   1. 对 CDN 不友好 (很多 CDN 不支持 gRPC)
+       *   2. 握手开销比 TCP 大 (HTTP/2 需要先建立连接)
+       *   3. 某些网络环境可能限速或阻断 gRPC
+       *
+       * service_name: grpc — gRPC 服务名
+       * 疑惑: 改成其他名字会更好吗？
+       * 回答: 服务名是自定义的，改成常见的 gRPC 服务名
+       *       (如 "otlp" 或 "grpc.reflection") 可能更隐蔽
+       */
+      "type": "vless",
+      "tag": "pkpk02",
+      "connect_timeout": "5s",
+      "tcp_fast_open": true,
+      "domain_resolver": "dns-udp",
+      "server": "your-server.example.com",    // ← 已脱敏
+      "server_port": 443,                     // ← 已脱敏
+      "uuid": "xxxxxxxx-xxxx-xxxx-xxxxxxxxxxxx", // ← 已脱敏
+      "tls": {
+        "enabled": true,
+        "server_name": "addons.mozilla.org",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" // ← 已脱敏
+        }
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "grpc"
+      },
+      "packet_encoding": "xudp"
+    },
+
+    // ─── 节点 3: Shadowsocks 2022 ───────────────────────────────
+    {
+      /*
+       * pkpk03: Shadowsocks 2022 (最新版)
+       * method: 2022-blake3-aes-128-gcm
+       *
+       * Shadowsocks 2022 协议说明:
+       *   这是 Shadowsocks 的最新版本 (2022 年发布)
+       *   与传统 SS 的区别:
+       *     1. 加密更强: Blake3 哈希 + AES-128-GCM
+       *     2. 防重放攻击: 内置时间戳验证
+       *     3. 无特征: 数据完全随机，无协议特征
+       *     4. 需要准确的时间 (NTP 同步)
+       *
+       * 为什么需要 NTP: SS2022 的防重放依赖时间戳
+       * 如果手机时间和服务器时间差距太大 (超过 30 秒)，
+       * 连接会失败。这就是前面配置 NTP 的原因
+       *
+       * 疑惑: 为什么不用更高强度的加密？
+       * 回答: AES-128-GCM 已经足够安全，AES-256 只是密钥更长
+       *       实际安全性差距很小，但 AES-128 性能更好
+       *       Blake3 是目前最快的加密哈希算法之一
+       *
+       * 没有 TLS: SS 本身是加密代理，不需要额外 TLS 层
+       * 这也意味着没有域名伪装，纯 IP 直连
+       */
+      "type": "shadowsocks",
+      "tag": "pkpk03",
+      "connect_timeout": "5s",
+      "tcp_fast_open": true,
+      "domain_resolver": "dns-udp",
+      "server": "your-server.example.com",    // ← 已脱敏
+      "server_port": 30010,                   // ← 已脱敏
+      "method": "2022-blake3-aes-128-gcm",
+      "password": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" // ← 已脱敏
+    },
+
+    // ─── 节点 4: Shadowsocks + v2ray-plugin ─────────────────────
+    {
+      /*
+       * pkpk04: Shadowsocks + v2ray-plugin (WebSocket + TLS)
+       * 这是传统的 SS + 插件模式
+       *
+       * method: chacha20-ietf-poly1305
+       *   传统 SS 加密，兼容性好但不如 SS2022 强
+       *
+       * plugin: v2ray-plugin — V2Ray 的 WebSocket 插件
+       * plugin_opts 参数解析:
+       *   mode=websocket     — 用 WebSocket 传输
+       *   host=节点域名       — WS Host 头部 (伪装成正常网站)
+       *   path=/pkpk-sh       — WS 路径 (自定义，越随机越好)
+       *   tls=true            — 启用 TLS 加密
+       *   servername=节点域名  — TLS SNI (和 host 一致)
+       *   skip-cert-verify=false — 验证 TLS 证书
+       *   mux=0              — 禁用多路复用
+       *
+       * 说明: v2ray-plugin 把 SS 流量包装成 WebSocket + TLS
+       *       nginx/CDN 看到的就是普通的 HTTPS WebSocket 连接
+       *
+       * CF 优选: server 可以用 Cloudflare 优选 IP
+       *   CF 优选 IP 是经过测试发现对中国用户速度最好的 CF 节点
+       *   套上 CF 后，你的 VPS 真实 IP 被隐藏
+       *   但需要 CF 支持的端口 (443/8443/2053/2083/2087/2096)
+       *
+       * udp_over_tcp: 启用 UDP 支持
+       *   version: 2 — 使用 v2ray UoT 协议封装 UDP
+       * 疑惑: 为什么不直接用 SS2022？
+       * 回答: SS + 插件可以套 CDN (Cloudflare)，隐藏服务器 IP
+       *       而 SS2022 目前不支持插件模式
+       */
+      "type": "shadowsocks",
+      "tag": "pkpk04",
+      "connect_timeout": "5s",
+      "tcp_fast_open": true,
+      "domain_resolver": "dns-udp",
+      "server": "cf-preferip.example.com",    // ← 已脱敏: CF 优选 IP 或域名
+      "server_port": 443,
+      "method": "chacha20-ietf-poly1305",
+      "password": "xxxxxxxxxxxxxxxx",         // ← 已脱敏
+      "udp_over_tcp": {
+        "enabled": true,
+        "version": 2
+      },
+      "plugin": "v2ray-plugin",
+      "plugin_opts": "mode=websocket;host=your-domain.example.com;path=/your-path;tls=true;servername=your-domain.example.com;skip-cert-verify=false;mux=0"
+      // 已脱敏: host/servername/domain/path 均已替换
+    },
+
+    // ─── 节点 5: Trojan ─────────────────────────────────────────
+    {
+      /*
+       * pkpk05: Trojan + TLS
+       *
+       * Trojan 协议说明:
+       *   Trojan 的设计理念: "用最正常的方式伪装"
+       *   TLS 握手后发送的第一个包包含密码哈希
+       *   密码不对 → 回落到普通 HTTPS 网站 (nginx 等)
+       *   密码正确 → 建立代理隧道
+       *
+       *   外部看起来就是普通的 HTTPS 连接
+       *   相比 VLESS Reality，Trojan 更"旧"但经过了大量实战考验
+       *
+       * certificate_public_key_sha256:
+       *   固定服务器证书的公钥哈希
+       *   即使有人用假证书中间人攻击，也会因为哈希不匹配而失败
+       * 疑惑: 这个密钥和 Reality 的 public_key 有什么不同？
+       * 回答: Reality 的 public_key 是临时生成的，用于握手加密
+       *       Trojan 的这个是服务器 TLS 证书的 SHA256 哈希
+       *       用于证书固定 (Certificate Pinning)
+       *       Reality 的 key 可以公开，Trojan 的 key 是证书指纹
+       */
+      "type": "trojan",
+      "tag": "pkpk05",
+      "connect_timeout": "5s",
+      "tcp_fast_open": true,
+      "domain_resolver": "dns-udp",
+      "server": "your-server.example.com",    // ← 已脱敏
+      "server_port": 443,                     // ← 已脱敏
+      "password": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", // ← 已脱敏
+      "tls": {
+        "enabled": true,
+        "server_name": "addons.mozilla.org",
+        "certificate_public_key_sha256": [
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" // ← 已脱敏
+        ]
+      }
+    },
+
+    // ─── 节点 6: Hysteria2 ──────────────────────────────────────
+    {
+      /*
+       * pkpk06: Hysteria2 (基于 QUIC 的高速代理)
+       *
+       * Hysteria2 协议说明:
+       *   基于 QUIC (HTTP/3 的底层协议) 的代理
+       *   核心优势:
+       *     1. 速度快: QUIC 的 0-RTT 握手，延迟极低
+       *     2. Brutal 拥塞控制: 可自定义带宽，最大化线路利用率
+       *     3. 端口跳跃: 服务端监听多个端口，客户端随机切换
+       *        防止单端口被封
+       *
+       * 端口跳跃 (Port Hopping):
+       *   server_ports: 跳跃端口列表
+       *   hop_interval: 30s — 每 30 秒换一个端口
+       *   hop_interval_max: 60s — 最多 60 秒必换一次
+       *   说明: 端口跳跃让防火墙难以封锁
+       *        因为端口一直在变，无法针对性封锁
+       *
+       * 带宽控制:
+       *   up_mbps: 上传带宽 (Mbps)
+       *   down_mbps: 下载带宽 (Mbps)
+       *   这个值应该设置为你实际带宽的 80%-90%
+       *   设置过高会导致丢包，设置过低会浪费带宽
+       *
+       * alpn: ["h3"] — ALPN 协商 HTTP/3
+       *   告诉服务器这是 HTTP/3 流量
+       *   外部看起来像 QUIC 网页浏览
+       *
+       * 疑惑: Hysteria2 和 VLESS Reality 哪个更好？
+       * 回答: 场景不同:
+       *   Reality 更适合 TCP 流量多的场景 (网页浏览)
+       *   Hysteria2 更适合大带宽场景 (下载/视频)
+       *   有些 ISP 会 QoS 限速 QUIC 流量
+       * 疑惑: 端口跳跃怎么配置？
+       * 回答: 服务端配置 server_ports 列表，
+       *       客户端配置相同的列表 + hop_interval
+       *       端口数越多越难被封锁，但服务端资源消耗也越大
+       */
+      "type": "hysteria2",
+      "tag": "pkpk06",
+      "connect_timeout": "5s",
+      "tcp_fast_open": true,
+      "domain_resolver": "dns-udp",
+      "server": "your-server.example.com",    // ← 已脱敏
+      "server_port": 443,                     // ← 已脱敏
+      "server_ports": [
+        "10000-20000"                         // ← 已脱敏: 实际端口范围
+      ],
+      "hop_interval": "30s",
+      "hop_interval_max": "60s",
+      "up_mbps": 100,                         // ← 已脱敏: 实际带宽值
+      "down_mbps": 500,                       // ← 已脱敏: 实际带宽值
+      "password": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", // ← 已脱敏
+      "tls": {
+        "enabled": true,
+        "server_name": "addons.mozilla.org",
+        "certificate_public_key_sha256": [
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" // ← 已脱敏
+        ],
+        "alpn": ["h3"]
+      }
+    }
+  ],
+
+  // ═══════════════════════════════════════════════════════════════
+  // 七、ROUTE · 路由规则 (规则引擎)
+  // ═══════════════════════════════════════════════════════════════
+  /*
+   * 路由规则从上到下依次匹配，命中即停止
+   * 匹配优先级: 域名 > rule_set > IP > 其他条件
+   */
+  "route": {
+    "rules": [
+      // ── 规则 0: SNIFF · 协议嗅探 ─────────────────────────────
+      {
+        /*
+         * action: sniff — 嗅探流量协议
+         * 这是路由的第一步，对所有流量进行协议检测
+         * 检测内容:
+         *   - TLS SNI (域名)
+         *   - HTTP Host (域名)
+         *   - QUIC 域名
+         *   - DNS 查询
+         *
+         * 为什么必须放在第一条:
+         *   后续规则需要用到 sniff 出的域名来匹配 domain/geosite
+         *   如果不先 sniff，IP 直连流量只能匹配 IP 规则
+         *   无法按域名分流 (因为域名在加密包里)
+         *
+         * 回答: sniff 会不会影响性能？
+         *       sniff 只读取前几个字节，开销极小
+         *       相比带来的精确分流能力，值得
+         */
+        "action": "sniff"
+      },
+
+      // ── 规则 1: DNS 劫持 ──────────────────────────────────────
+      {
+        /*
+         * hijack-dns: 拦截 DNS 请求到 sing-box 的 DNS 模块
+         * 匹配条件: 端口 53 或 协议为 DNS
+         * 逻辑: or — 任一条件满足即匹配
+         * 说明: TUN 模式下所有 DNS 包都被路由到这里
+         *       然后由 sing-box DNS 模块处理分流
+         */
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          { "port": 53 },
+          { "protocol": "dns" }
+        ],
+        "action": "hijack-dns"
+      },
+
+      // ── 规则 2-3: 国内流媒体直连 ──────────────────────────────
+      {
+        /*
+         * 哔哩哔哩直连
+         * bilivideo.com / hdslb.com: B站视频 CDN 域名
+         * bilicdn.com: B站 CDN
+         * 说明: 国内流媒体直连更快，走代理反而绕路
+         */
+        "domain_suffix": [
+          "api.bilibili.com",
+          "www.bilibili.com",
+          "bilivideo.com",
+          "hdslb.com",
+          "bilicdn1.com",
+          "bilicdn.com"
+        ],
+        "outbound": "DIRECT"
+      },
+      {
+        /*
+         * 小红书/快手/西瓜视频直连
+         */
+        "domain_suffix": [
+          "xiaohongshu.com",
+          "xhscdn.com",
+          "kuaishou.com",
+          "ixigua.com"
+        ],
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 4: FakeIP 流量走代理 ─────────────────────────────
+      {
+        /*
+         * ip_cidr: 198.18.0.0/15
+         * 所有发往 FakeIP 段的流量一定是代理流量
+         * 说明: 这个规则确保 FakeIP 流量不会被其他规则干扰
+         *       (比如被 ip_is_private 误判)
+         */
+        "ip_cidr": "198.18.0.0/15",
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 5: UDP 选项 ──────────────────────────────────────
+      {
+        /*
+         * route-options: 设置路由选项 (不决定出站)
+         * udp_disable_domain_unmapping: true
+         *   禁止 UDP 流量的域名反查
+         *   说明: UDP 流量(如 QUIC)的域名可能在连接建立时
+         *         就已经确定了, 不需要再反查
+         * udp_connect: true
+         *   UDP 连接模式 (而不是无连接模式)
+         *   说明: 让 UDP 走类似 TCP 的连接跟踪
+         *        否则每个 UDP 包可能被路由到不同节点
+         * 疑惑: 为什么需要这两个选项？
+         * 回答: UDP 默认是无连接的，但代理场景下需要
+         *       保持 UDP 会话的连续性。这两个选项确保
+         *       UDP 数据包和初始连接走同一个出站
+         */
+        "action": "route-options",
+        "udp_disable_domain_unmapping": true,
+        "udp_connect": true
+      },
+
+      // ── 规则 6: 广告/追踪/DNS 泄露 → 丢弃 ─────────────────────
+      {
+        "rule_set": ["Ads", "httpDNS", "DNSreject"],
+        "action": "reject",
+        "method": "drop"          // drop: 直接丢弃，不返回任何响应
+      },
+
+      // ── 规则 7-8: Clash 面板模式切换 ──────────────────────────
+      {
+        /*
+         * clash_mode: Global — 全局模式
+         * 所有流量走 PROXY
+         */
+        "clash_mode": "Global",
+        "outbound": "PROXY"
+      },
+      {
+        /*
+         * clash_mode: Direct — 直连模式
+         * 所有流量走 DIRECT (除已被前面规则处理的)
+         */
+        "clash_mode": "Direct",
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 9: Apple 服务直连 ────────────────────────────────
+      {
+        /*
+         * Apple 规则集 → 直连
+         * 说明: Apple 在中国有数据中心 (云上贵州)
+         *       Apple CDN 国内节点很多
+         *       直连反而更快
+         * 疑惑: 如果 Apple 服务被墙了呢？
+         * 回答: Apple 主流服务 (iCloud/App Store) 在国内没被墙
+         *       如果某天被墙了，需要把 Apple 改走代理
+         */
+        "rule_set": "Apple",
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 10: Google/YouTube/Telegram → 代理 ───────────────
+      {
+        /*
+         * 核心代理规则: Google 全家桶 + Telegram
+         * 这些是必须走代理的服务
+         */
+        "rule_set": [
+          "geosite-youtube",
+          "geosite-google",
+          "telegram"
+        ],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 11: Android FCM → 代理 ───────────────────────────
+      {
+        /*
+         * fcm: Firebase Cloud Messaging (Google 推送服务)
+         * Android: Android 系统级服务
+         * 说明: 如果 FCM 不通，大部分 App 的推送通知都会失效
+         *       Android 规则集包含 Google Play 服务、定位等功能
+         */
+        "rule_set": ["fcm", "Android"],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 12: Google 中国域名 → 代理 ───────────────────────
+      {
+        /*
+         * google.cn / googleapis.cn
+         * 说明: Google 的中国域名虽然理论上可直连
+         *       但走代理更稳定 (尤其是 googleapis.cn 经常不稳定)
+         * 疑惑: 为什么不直连？
+         * 回答: 这些域名虽然在中国有服务器，但服务质量不稳定
+         *       走代理确保可靠性
+         */
+        "domain_suffix": ["google.cn", "googleapis.cn"],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 13: 常见国外服务 → 代理 ──────────────────────────
+      {
+        /*
+         * 手动指定的域名列表 (比规则集更精准)
+         * 包含: 流媒体/代码托管/游戏/社交/电商/支付
+         * 说明: 这些域名用 domain_suffix 精确匹配
+         *       比 rule_set 更可靠 (rule_set 可能漏或误杀)
+         */
+        "domain_suffix": [
+          "netflix", "spotify", "github", "steam",
+          "discord", "reddit", "tiktok",
+          "twitter", "facebook", "amazon",
+          "microsoft", "apple", "paypal"
+        ],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 14: 规则集批量代理 ───────────────────────────────
+      {
+        /*
+         * 大量规则集统一走代理
+         * 解释各规则集:
+         *   telegram/telegram_ip — Telegram 域名和 IP 规则
+         *   youtube — YouTube
+         *   instagram — Instagram
+         *   Google — Google (senshinya 维护的版本)
+         *   ai — AI 服务
+         *   GlobalMedia — 全球流媒体
+         *   Proxy — 非中国域名
+         *   gfw — 被 GFW 封锁的域名
+         */
+        "rule_set": [
+          "telegram", "telegram_ip", "youtube",
+          "instagram", "Google", "ai",
+          "GlobalMedia", "Proxy", "gfw"
+        ],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 15: 特定 App 直连 ────────────────────────────────
+      {
+        /*
+         * com.wwwscn.yuexingbao — 月行宝 (某支付/生活服务 App)
+         * 这类国内 App 直连即可
+         * package_name: Android 应用包名匹配
+         * 说明: 按包名分流可以实现 App 级别的代理控制
+         */
+        "package_name": "com.example.chinaapp", // ← 已脱敏
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 16: NTP/ICMP 直连 ────────────────────────────────
+      {
+        /*
+         * NTP: 时间同步协议 — 必须直连 (走代理会有延迟导致时间不准)
+         * ICMP: Ping — 直连 (走代理没意义)
+         *
+         * 疑惑: ICMP 为什么直连？
+         * 回答: ICMP (Ping) 通常只是检测连通性
+         *       走代理反而无法检测真实的网络状况
+         */
+        "protocol": ["ntp", "icmp"],
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 17: 特定服务直连 ──────────────────────────────────
+      {
+        /*
+         * sponsor.ajay.app — SponsorBlock (YouTube 跳过广告插件)
+         * ifbapp.com — IFB 应用
+         * allawnos.com — 某服务域名
+         * heytapmobi.com — OPPO/一加服务
+         * steamserver.net — Steam 服务器 (国内有节点)
+         * 说明: 这些是特定的不需要代理的服务
+         */
+        "domain_suffix": [
+          "sponsor.ajay.app",
+          "ifbapp.com",
+          "allawnos.com",
+          "heytapmobi.com",
+          "steamserver.net"
+        ],
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 18: 拒绝 WebRTC 泄露相关协议 ──────────────────────
+      {
+        /*
+         * protocol 匹配 (sniff 识别出的协议类型)
+         * stun — WebRTC NAT 穿透协议
+         * quic — QUIC 协议 (HTTP/3 底层)
+         * dtls — DTLS (WebRTC 加密层)
+         *
+         * 说明: 拒绝这些协议的目的是:
+         *   1. 防 WebRTC 泄露真实 IP (STUN 会暴露真实 IP)
+         *   2. 强制浏览器使用 TCP (QUIC 走 UDP，容易被限速)
+         *   3. 防止 DTLS 泄露 (DTLS 是 TLS 的 UDP 版)
+         *
+         * 疑惑: 拒绝 QUIC 会不会让网站变慢？
+         * 回答: 浏览器检测到 QUIC 不通会自动降级到 HTTP/2(TCP)
+         *       在代理场景下 TCP 反而更可控
+         */
+        "protocol": ["stun", "quic", "dtls"],
+        "action": "reject"
+      },
+
+      // ── 规则 19: 拒绝国产追踪器 ────────────────────────────────
+      {
+        /*
+         * 腾讯/百度/彩云天气的追踪域名
+         * astrategy.beacon.qq.com — QQ 用户行为追踪
+         * beacon.qq.com — 腾讯灯塔 (大数据分析)
+         * abyss.cyapi.cn / ad.cyapi.cn — 某广告/追踪服务
+         * gather.colorfulclouds.net — 彩云天气数据收集
+         *
+         * method: drop — 直接丢包，不返回任何响应
+         *   (比 reject 更隐蔽，追踪器不知道是被主动拒绝)
+         */
+        "domain": [
+          "astrategy.beacon.qq.com",
+          "beacon.qq.com",
+          "abyss.cyapi.cn",
+          "ad.cyapi.cn",
+          "gather.colorfulclouds.net"
+        ],
+        "action": "reject",
+        "method": "drop"
+      },
+
+      // ── 规则 20: 拒绝非全局 IPv6 ──────────────────────────────
+      {
+        /*
+         * 逻辑: 流量是 IPv6 且不是全局单播地址 → 拒绝
+         * ip_version: 6 — IPv6
+         * default_interface_address: 2000::/3 — 全局单播 IPv6 段
+         * invert: true — 取反，不是 2000::/3 的 IPv6 地址
+         *
+         * 说明: IPv6 有多种地址类型，2000::/3 是全局单播
+         *       其他如 fe80:: (本地链路) / fc00:: (唯一本地)
+         *       在代理场景不需要，直接拒绝
+         * 疑惑: 为什么要拒绝非全局的 IPv6？
+         * 回答: 局域网/本地链路的 IPv6 地址走代理没意义
+         *       而且可能泄露本地网络信息
+         */
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          { "ip_version": 6 },
+          {
+            "default_interface_address": "2000::/3",
+            "invert": true
+          }
+        ],
+        "action": "reject"
+      },
+
+      // ── 规则 21: YouTube/Telegram App → 代理 ──────────────────
+      {
+        /*
+         * 按 Android 包名精确分流
+         * com.google.android.youtube — 官方 YouTube
+         * app.revanced.android.youtube — YouTube ReVanced
+         * org.telegram.messenger — Telegram
+         * org.telegram.messenger.beta — Telegram Beta
+         *
+         * 说明: package_name 可以精确到一个 App
+         *       即使 App 用 IP 直连或自定义 DNS，
+         *       只要包名匹配就一定走代理
+         */
+        "package_name": [
+          "com.google.android.youtube",
+          "app.revanced.android.youtube",
+          "org.telegram.messenger",
+          "org.telegram.messenger.beta"
+        ],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 22: Google FCM 长连接 → 代理 ─────────────────────
+      {
+        /*
+         * mtalk.google.com 是 Google FCM 的长连接服务器
+         * alt1~alt8 是备用服务器
+         * 端口 443 (HTTPS) 和 5228 (Google Play/XMPP)
+         *
+         * 说明: 这个规则很关键！
+         *       如果 FCM 长连接不通，Android 推送全部失效
+         *       FCM 必须走代理且不能中断，否则收不到通知
+         */
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          {
+            "domain_suffix": [
+              "mtalk.google.com",
+              "alt1-mtalk.google.com",
+              "alt2-mtalk.google.com",
+              "alt3-mtalk.google.com",
+              "alt4-mtalk.google.com",
+              "alt5-mtalk.google.com",
+              "alt6-mtalk.google.com",
+              "alt7-mtalk.google.com",
+              "alt8-mtalk.google.com"
+            ]
+          },
+          { "port": [443, 5228] }
+        ],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 23: 更多代理规则 ──────────────────────────────────
+      {
+        "rule_set": [
+          "telegramip", "geosite-google",
+          "proxy", "games", "ai"
+        ],
+        "outbound": "PROXY"
+      },
+
+      // ── 规则 24: 国内域名/服务 → 直连 ──────────────────────────
+      {
+        /*
+         * 综合国内规则集 → 直连
+         * private — 私有/局域网
+         * cn — 中国域名
+         * cnip — 中国 IP
+         * microsoft-cn — 微软中国
+         * apple-cn — Apple 中国
+         * google-cn — Google 中国
+         * games-cn — 国内游戏
+         * networktest — 网络检测域名
+         */
+        "rule_set": [
+          "private", "cn", "cnip",
+          "microsoft-cn", "apple-cn",
+          "google-cn", "games-cn", "networktest"
+        ],
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 25: 国内大厂域名 → 直连 ──────────────────────────
+      {
+        /*
+         * 手动指定国内大厂域名
+         * 阿里系: alipay.com, alicdn.com, aliyuncs.com
+         * 腾讯云: qcloud.com, cloud.tencent.com
+         * 小米: mi.com, xiaomi.com
+         * 华为: huawei.com
+         * vivo: vivo.com.cn
+         * OPPO: oppo.com
+         * 酷安: coolapk.com
+         * WPS: wps.cn
+         * B站 API: biliapi.com
+         */
+        "domain_suffix": [
+          "alipay.com", "alicdn.com", "aliyuncs.com",
+          "qcloud.com", "cloud.tencent.com",
+          "mi.com", "xiaomi.com", "huawei.com",
+          "vivo.com.cn", "oppo.com",
+          "coolapk.com", "wps.cn", "biliapi.com"
+        ],
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 26-27: 重复/补充代理和直连规则 ────────────────────
+      {
+        /*
+         * 规则 26: 补充代理规则
+         * 和规则 10+14 有部分重叠，作为兜底
+         */
+        "rule_set": [
+          "geosite-google", "geosite-youtube",
+          "instagram", "telegram",
+          "GlobalMedia", "gfw", "Proxy"
+        ],
+        "outbound": "PROXY"
+      },
+      {
+        /*
+         * 规则 27: 补充直连规则 (cn + 各大厂的国内版)
+         * 说明: 规则 24 的子集，作为兜底
+         * 疑惑: 规则 24 已经覆盖了，为什么还要 27？
+         * 回答: 规则 27 是规则 24 的子集，实际永远不会被触发
+         *       因为规则 24 在前面已经匹配了同样的域名
+         *       属于冗余规则，可以删除
+         */
+        "rule_set": [
+          "cn", "apple-cn", "microsoft-cn",
+          "google-cn", "games-cn"
+        ],
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 28: 保留/特殊 IP 段 → 拒绝 ────────────────────────
+      {
+        /*
+         * 拒绝特殊用途 IP 段的连接
+         * 0.0.0.0/8      — "本网络" (只有作为源地址时有效)
+         * 10.0.0.0/8     — A 类私有地址
+         * 127.0.0.0/8    — 回环地址 (localhost)
+         * 169.254.0.0/16 — 链路本地地址 (DHCP 失败时)
+         * 172.16.0.0/12  — B 类私有地址
+         * 192.168.0.0/16 — C 类私有地址
+         * 224.0.0.0/4    — 组播地址
+         * 240.0.0.0/4    — 保留地址 (E 类)
+         *
+         * 说明: 这些 IP 不应该出现在公网流量中
+         *       如果出现，可能是配置错误或攻击流量
+         * 疑惑: 私有地址为什么不走 DIRECT？
+         * 回答: 这个规则匹配的是"发往私有地址的流量"
+         *       在 TUN 模式下，正常的内网流量应该被
+         *       auto_route 正确路由，不会进 TUN
+         *       进了 TUN 的私有地址流量=异常，直接拒绝
+         */
+        "ip_cidr": [
+          "0.0.0.0/8",
+          "10.0.0.0/8",
+          "127.0.0.0/8",
+          "169.254.0.0/16",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "224.0.0.0/4",
+          "240.0.0.0/4"
+        ],
+        "action": "reject"
+      },
+
+      // ── 规则 29: 微信/支付宝/网易云 → 直连 ────────────────────
+      {
+        /*
+         * 国内 App 直连
+         * com.tencent.mm — 微信
+         * com.eg.android.AlipayGphone — 支付宝
+         * com.netease.cloudmusic — 网易云音乐
+         */
+        "package_name": [
+          "com.tencent.mm",
+          "com.eg.android.AlipayGphone",
+          "com.netease.cloudmusic"
+        ],
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 30: 广告规则集 → 拒绝 ────────────────────────────
+      {
+        /*
+         * 连接层面的广告拒绝
+         * 说明: DNS 层面 (DNS 规则 21) 已经拒绝了这些域名
+         *       这里在连接层面再次拒绝，双重保险
+         *       如果某个广告域名通过 IP 直连绕过了 DNS，
+         *       这个规则可以兜底
+         */
+        "rule_set": ["geosite_adguard", "geosite-category-ads-all"],
+        "action": "reject"
+      },
+
+      // ── 规则 31: 拒绝 STUN/TURN/HTTPDNS ────────────────────────
+      {
+        /*
+         * 拒绝 WebRTC 和 DNS 泄露
+         * 网络: UDP
+         * 端口: 3478/5349/5350 = STUN/TURN
+         *       19302 = Google STUN
+         *       10000 = 常见 WebRTC 端口
+         *
+         * 域名正则: ^stun\\..+ — 匹配 stun. 开头的域名
+         * 关键词: stun/turn/httpdns
+         *
+         * 说明: 这是 WebRTC 泄露的最后一道防线
+         *       即使前面的 QUIC/STUN 拒绝规则没拦住
+         *       (比如 sniff 失败了)，这里按端口+域名补刀
+         */
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "network": "udp",
+            "port": [3478, 5349, 5350, 19302, 10000]
+          },
+          {
+            "domain_regex": "^stun\\..+"
+          },
+          {
+            "domain_keyword": ["stun", "turn", "httpdns"]
+          },
+          {
+            "protocol": "stun"
+          }
+        ],
+        "action": "reject"
+      },
+
+      // ── 规则 32: 反欺诈规则集 → 拒绝 ──────────────────────────
+      {
+        "rule_set": "anti_fraud",
+        "action": "reject"
+      },
+
+      // ── 规则 33: 私有 IP → 直连 ───────────────────────────────
+      {
+        /*
+         * 匹配私有 IP 地址
+         * 说明: 这个规则是 ip_is_private 而不是 ip_cidr
+         *       它会自动匹配所有 RFC 1918 私有地址
+         *       以及链路本地、回环地址等
+         * 疑惑: 规则 28 不是拒绝私有 IP 了吗？
+         * 回答: 规则 28 是精确拒绝那几个段
+         *       规则 33 是更广泛的 ip_is_private 匹配
+         *       正常情况下私有 IP 不应该进 TUN
+         *       这里是兜底保护
+         */
+        "ip_is_private": true,
+        "outbound": "DIRECT"
+      },
+
+      // ── 规则 34: 最终解析 ──────────────────────────────────────
+      {
+        /*
+         * action: resolve — 强制解析域名
+         * 这是路由规则的最后一条
+         * 任何走到这里的流量，如果有域名的话，
+         * 强制进行 DNS 解析后再匹配后续规则
+         * 说明: 这条规则不能删除！它确保未知流量也能被正确路由
+         */
+        "action": "resolve"
+      }
+    ],
+
+    // ── 远程规则集定义 ──────────────────────────────────────────
+    /*
+     * rule_set: 定义所有使用的远程规则集
+     * 每个规则集:
+     *   type: remote — 从 URL 下载
+     *   tag: 标签 — 被 DNS 和路由规则引用
+     *   url: 下载地址 — 使用 jsDelivr CDN 或 GitHub Raw
+     *   http_client: default — 使用前面定义的 HTTP 客户端
+     *   update_interval: 48h — 每 48 小时更新一次
+     *
+     * 规则集来源:
+     *   SagerNet/sing-geosite     — sing-box 官方 geosite 规则
+     *   DustinWin/ruleset_geodata  — 社区维护的规则集集合
+     *   MetaCubeX/meta-rules-dat   — MetaCubeX 团队的规则
+     *   senshinya/singbox_ruleset  — 另一个社区规则集
+     *   217heidai/adblockfilters   — 广告过滤规则
+     *   hwsaya/nothing             — 反欺诈规则
+     */
+    "rule_set": [
+      {
+        "type": "remote",
+        "tag": "geosite-category-ads-all",
+        "url": "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "http_client": "default",
+        "update_interval": "48h0m0s"
+      }
+      // ... 其余规则集定义省略 (共 47 个)
+      // 实际使用时应保留所有被引用的规则集
+    ],
+
+    // ── 路由模块全局设置 ────────────────────────────────────────
+    /*
+     * final: 最终出站
+     * 所有未被任何规则匹配的流量走 Final 出站
+     * Final 默认选 PROXY (在上面定义的 Final selector 里)
+     * 说明: 这是"白名单模式" — 未知流量走代理
+     *       相对于"黑名单模式"(未知流量直连)更安全
+     */
+    "final": "Final",
+
+    /*
+     * auto_detect_interface: 自动检测网络接口
+     * 说明: 在 Android 上自动检测当前使用的 WiFi/蜂窝网络
+     *       切换网络时自动更新路由
+     */
+    "auto_detect_interface": true,
+
+    /*
+     * default_domain_resolver: 路由模块的默认 DNS
+     * 用于解析出站服务器的域名
+     * 说明: 这里的 dns-udp 解析的是节点服务器域名
+     *       不是用户访问的网站域名 (那些由 DNS 模块处理)
+     * 回答: 为什么用国内 DNS 解析节点域名？
+     *       可以获得离用户最近的节点 IP (如果节点有 CDN)
+     */
+    "default_domain_resolver": "dns-udp"
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 八、EXPERIMENTAL · 实验性功能
+  // ═══════════════════════════════════════════════════════════════
+  "experimental": {
+    /*
+     * cache_file: 持久化缓存
+     * enabled: true — 开启缓存持久化
+     * path: cache.db — 缓存文件位置
+     * cache_id: cinchov — 缓存 ID (切换配置时用不同的 ID)
+     *
+     * store_fakeip: true — 存储 FakeIP 映射
+     *   重启后不需要重新解析 FakeIP-域名的映射
+     *
+     * store_dns: true — 存储 DNS 缓存
+     *   重启后保留 DNS 解析结果，减少冷启动延迟
+     *
+     * 疑惑: cache_id 是干什么的？
+     * 回答: 如果你有不同的配置文件，每个配置可以有自己的缓存
+     *       ID 不同，缓存文件独立，避免冲突
+     */
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",
+      "cache_id": "cinchov",
+      "store_fakeip": true,
+      "store_dns": true
+    },
+
+    /*
+     * clash_api: Clash API 兼容接口
+     * external_controller: 127.0.0.1:9090
+     *   本地监听 9090 端口，提供 Clash 兼容的 HTTP API
+     * external_ui: ui
+     *   Web 面板的静态文件路径
+     * default_mode: rule
+     *   默认模式为"规则模式"
+     *
+     * 说明: 通过 Clash API 可以:
+     *   1. 查看连接状态
+     *   2. 手动切换节点
+     *   3. 切换全局/规则/直连模式
+     *   4. 查看流量统计
+     *
+     * 访问方式: 浏览器打开 http://127.0.0.1:9090/ui
+     * 或使用 Yacd/Metacubexd 等第三方面板
+     */
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "default_mode": "rule"
+    },
+
+    /*
+     * debug: 调试选项
+     * gc_percent: 100
+     *   Go 垃圾回收百分比。100 是默认值
+     *   设置更高可以减少 GC 频率但占用更多内存
+     * memory_limit: 400MB
+     *   软内存限制。超过这个值后 GC 会更激进
+     *   说明: 限制内存使用，防止在低内存手机上 OOM
+     */
+    "debug": {
+      "gc_percent": 100,
+      "memory_limit": "400MB"
+    }
+  }
+}
+
+/*
+ * ╔══════════════════════════════════════════════════════════════╗
+ * ║                   常见问题 FAQ                               ║
+ * ╚══════════════════════════════════════════════════════════════╝
+ *
+ * Q: 为什么有 47 个 rule_set 但有些可能用不到？
+ * A: 部分 rule_set 只被 DNS 规则引用，部分只被路由规则引用，
+ *    有些是冗余的。可以通过搜索 tag 名来排查未使用的规则集。
+ *
+ * Q: 6 个节点哪个最好？
+ * A: 没有绝对的"最好"，取决于网络环境:
+ *    - 电信/联通: pkpk01 (Reality XTLS) 通常最稳
+ *    - 移动宽带: pkpk03 (SS2022) 可能更快 (移动对 UDP 友好)
+ *    - 大流量下载: pkpk06 (Hysteria2) 最大带宽
+ *    - 套 CDN 隐藏 IP: pkpk04 (SS+v2ray-plugin)
+ *
+ * Q: DNS 策略为什么是 ipv4_only？
+ * A: IPv6 在国内普及率不高，很多 VPS 也没 IPv6。
+ *    只查 IPv4 可以减少一半 DNS 查询，提升解析速度。
+ *
+ * Q: cache_capacity 256000 会不会太大？
+ * A: 256K 是最大容量，实际使用量取决于访问的域名数量。
+ *    日常使用通常在 1-5 万条左右。
+ *
+ * Q: 如何切换全局/规则/直连模式？
+ * A: 在 Clash 面板 (http://127.0.0.1:9090/ui) 中切换，
+ *    或者修改 clash_mode 规则对应的 outbound。
+ *
+ * Q: 如果某个 App 走代理太慢怎么办？
+ * A: 在路由规则中加一条 package_name 规则指向 DIRECT。
+ *    例如: {"package_name": "com.example.app", "outbound": "DIRECT"}
+ *
+ * Q: log.level: trace 和 info 有什么区别？
+ * A: trace 记录每个数据包的流向，日志量巨大 (可能几百 MB/天)
+ *    info 只记录连接建立/关闭，日常使用 info 就够了
+ *
+ * Q: 这份配置可以用于 iOS/macOS/Windows 吗？
+ * A: 大部分可以，但需要调整:
+ *    - package_name 是 Android 专用，其他平台需要移除
+ *    - TUN 的 stack: system 在 iOS 上需要改成 gvisor
+ *    - auto_detect_interface 在所有平台都可用
+ *
+ * Q: Naive 协议为什么没包含在内？
+ * A: Naive 协议在中国的移动/宽带网络上被 DPI 精准识别和封锁
+ *    (已在 2026 年实际测试证实)，因此不推荐使用。
+ *    该协议使用 Chromium Cronet 库，内置 Google DNS over QUIC，
+ *    在中国网络环境下不可用。
+ */

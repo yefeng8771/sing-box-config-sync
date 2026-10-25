@@ -1,0 +1,908 @@
+{
+  "dns": {
+    "cache_capacity": 16384,
+    "final": "ggdns",
+    "optimistic": {
+      "enabled": true,
+      "timeout": "5m0s"
+    },
+    "rules": [
+      {
+        "action": "reject",
+        "ip_version": 6
+      },
+      {
+        "action": "reject",
+        "query_type": [
+          "SVCB",
+          "HTTPS",
+          "PTR"
+        ]
+      },
+      {
+        "rule_set": "private",
+        "server": "local-dns"
+      },
+      {
+        "rule_set": [
+          "cn",
+          "microsoft-cn",
+          "apple-cn",
+          "games-cn"
+        ],
+        "server": "local-dns"
+      },
+      {
+        "rewrite_ttl": 300,
+        "rule_set": [
+          "Google",
+          "fcm",
+          "Android",
+          "proxy",
+          "gfw",
+          "ai"
+        ],
+        "server": "fakeip"
+      },
+      {
+        "action": "reject",
+        "rule_set": [
+          "httpDNS",
+          "DNSreject",
+          "ads"
+        ]
+      },
+      {
+        "action": "evaluate",
+        "rule_set": [
+          "games",
+          "networktest",
+          "fakeip-filter"
+        ],
+        "server": "ggdns"
+      },
+      {
+        "action": "reject",
+        "ip_is_private": true,
+        "match_response": true,
+        "rule_set": [
+          "games",
+          "networktest",
+          "fakeip-filter"
+        ]
+      },
+      {
+        "action": "reject",
+        "invert": true,
+        "query_type": [
+          "A",
+          "AAAA"
+        ]
+      }
+    ],
+    "servers": [
+      {
+        "predefined": {
+          "dns.google": [
+            "8.8.8.8",
+            "8.8.4.4"
+          ]
+        },
+        "tag": "hosts_fix",
+        "type": "hosts"
+      },
+      {
+        "tag": "local-dns",
+        "type": "local"
+      },
+      {
+        "inet4_range": "198.18.0.0/15",
+        "tag": "fakeip",
+        "type": "fakeip"
+      },
+      {
+        "detour": "proxy",
+        "domain_resolver": "hosts_fix",
+        "server": "dns.google",
+        "tag": "ggdns",
+        "type": "https"
+      },
+      {
+        "detour": "proxy",
+        "domain_resolver": "hosts_fix",
+        "server": "cloudflare-dns.com",
+        "tag": "backup-dns",
+        "type": "https"
+      }
+    ],
+    "timeout": "3s"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",
+      "store_dns": true,
+      "store_fakeip": true
+    }
+  },
+  "http_clients": [
+    {
+      "connection_receive_window": 0,
+      "stream_receive_window": 0,
+      "tag": "default",
+      "version": 2
+    }
+  ],
+  "inbounds": [
+    {
+      "address": "10.8.0.1/24",
+      "auto_route": true,
+      "endpoint_independent_nat": true,
+      "mtu": 9000,
+      "stack": "system",
+      "strict_route": true,
+      "tag": "tun-in",
+      "type": "tun",
+      "udp_timeout": "1m0s"
+    }
+  ],
+  "log": {
+    "level": "trace",
+    "timestamp": true
+  },
+  "outbounds": [
+    {
+      "tag": "DIRECT",
+      "type": "direct"
+    },
+    {
+      "default": "CF电信优选1",
+      "outbounds": [
+        "auto",
+        "CF电信优选1",
+        "CF电信优选2",
+        "CF电信优选3",
+        "CF电信优选4",
+        "CF电信优选5",
+        "CF电信优选6",
+        "CF电信优选7",
+        "CF电信优选8",
+        "CF电信优选9",
+        "CF电信优选10",
+        "CF电信优选11",
+        "CF电信优选12",
+        "CF电信优选13",
+        "CF电信优选14",
+        "CF电信优选15",
+        "CF电信优选16",
+        "DIRECT"
+      ],
+      "tag": "proxy",
+      "type": "selector"
+    },
+    {
+      "interval": "10m0s",
+      "outbounds": [
+        "CF电信优选1",
+        "CF电信优选2",
+        "CF电信优选3",
+        "CF电信优选4",
+        "CF电信优选5",
+        "CF电信优选6",
+        "CF电信优选7",
+        "CF电信优选8",
+        "CF电信优选9",
+        "CF电信优选10",
+        "CF电信优选11",
+        "CF电信优选12",
+        "CF电信优选13",
+        "CF电信优选14",
+        "CF电信优选15",
+        "CF电信优选16"
+      ],
+      "tag": "auto",
+      "type": "urltest",
+      "url": "http://www.gstatic.com/generate_204"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.35.211.136",
+      "server_port": 2053,
+      "tag": "CF电信优选1",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.39.125.12",
+      "server_port": 2083,
+      "tag": "CF电信优选2",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.39.125.125",
+      "server_port": 2087,
+      "tag": "CF电信优选3",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "188.164.248.12",
+      "server_port": 2087,
+      "tag": "CF电信优选4",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "198.41.223.142",
+      "server_port": 2096,
+      "tag": "CF电信优选5",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.39.125.252",
+      "server_port": 8443,
+      "tag": "CF电信优选6",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.39.125.163",
+      "server_port": 8443,
+      "tag": "CF电信优选7",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "173.245.58.45",
+      "server_port": 8443,
+      "tag": "CF电信优选8",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.39.125.233",
+      "server_port": 2083,
+      "tag": "CF电信优选9",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "173.245.59.71",
+      "server_port": 2053,
+      "tag": "CF电信优选10",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "173.245.58.185",
+      "server_port": 8443,
+      "tag": "CF电信优选11",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.39.125.47",
+      "server_port": 2053,
+      "tag": "CF电信优选12",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "188.164.248.158",
+      "server_port": 2083,
+      "tag": "CF电信优选13",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "162.159.46.216",
+      "server_port": 2053,
+      "tag": "CF电信优选14",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "8.39.125.76",
+      "server_port": 443,
+      "tag": "CF电信优选15",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    },
+    {
+      "connect_timeout": "5s",
+      "domain_strategy": "prefer_ipv4",
+      "server": "162.159.44.39",
+      "server_port": 2087,
+      "tag": "CF电信优选16",
+      "tcp_fast_open": true,
+      "tcp_keep_alive": "30s",
+      "tcp_keep_alive_interval": "5s",
+      "tls": {
+        "enabled": true,
+        "server_name": "xn--hlra322yba.cc.cd",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "xn--hlra322yba.cc.cd"
+        },
+        "path": "/",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "b9b66b62-38a5-4747-8017-b9c2b17bf8c4"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "default_domain_resolver": "ggdns",
+    "default_http_client": "default",
+    "final": "proxy",
+    "rule_set": [
+      {
+        "tag": "cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cn.srs"
+      },
+      {
+        "tag": "cnip",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cnip.srs"
+      },
+      {
+        "tag": "private",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/private.srs"
+      },
+      {
+        "tag": "ads",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ads.srs"
+      },
+      {
+        "tag": "proxy",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/proxy.srs"
+      },
+      {
+        "tag": "gfw",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/gfw.srs"
+      },
+      {
+        "tag": "ai",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/ai.srs"
+      },
+      {
+        "tag": "games",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games.srs"
+      },
+      {
+        "tag": "microsoft-cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/microsoft-cn.srs"
+      },
+      {
+        "tag": "apple-cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/apple-cn.srs"
+      },
+      {
+        "tag": "games-cn",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/games-cn.srs"
+      },
+      {
+        "tag": "networktest",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/networktest.srs"
+      },
+      {
+        "tag": "httpDNS",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/BlockHttpDNS/BlockHttpDNS.srs"
+      },
+      {
+        "tag": "DNSreject",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/AdGuardSDNSFilter/AdGuardSDNSFilter.srs"
+      },
+      {
+        "tag": "Google",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/Google/Google.srs"
+      },
+      {
+        "tag": "fcm",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/GoogleFCM/GoogleFCM.srs"
+      },
+      {
+        "tag": "Android",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/Android/Android.srs"
+      },
+      {
+        "tag": "fakeip-filter",
+        "type": "remote",
+        "update_interval": "48h0m0s",
+        "url": "https://cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/fakeip-filter.srs"
+      }
+    ],
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "domain_suffix": [
+          "googleapis.com",
+          "googleusercontent.com",
+          "www.gstatic.com",
+          "github.com",
+          "githubusercontent.com"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "reject",
+        "protocol": "quic"
+      },
+      {
+        "action": "hijack-dns",
+        "mode": "or",
+        "rules": [
+          {
+            "port": 53
+          },
+          {
+            "protocol": "dns"
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "reject",
+        "mode": "and",
+        "rules": [
+          {
+            "ip_version": 6
+          },
+          {
+            "default_interface_address": "2000::/3",
+            "invert": true
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "reject",
+        "port": [
+          853,
+          5353
+        ]
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "DIRECT"
+      },
+      {
+        "action": "reject",
+        "rule_set": "ads"
+      },
+      {
+        "ip_cidr": "198.18.0.0/15",
+        "outbound": "proxy"
+      },
+      {
+        "outbound": "proxy",
+        "rule_set": [
+          "Google",
+          "fcm",
+          "Android",
+          "proxy",
+          "gfw",
+          "ai",
+          "games",
+          "networktest"
+        ]
+      },
+      {
+        "outbound": "DIRECT",
+        "rule_set": [
+          "cn",
+          "cnip"
+        ]
+      },
+      {
+        "outbound": "DIRECT",
+        "rule_set": "private"
+      },
+      {
+        "outbound": "DIRECT",
+        "rule_set": [
+          "microsoft-cn",
+          "apple-cn",
+          "games-cn"
+        ]
+      },
+      {
+        "action": "reject",
+        "protocol": [
+          "stun",
+          "dtls"
+        ]
+      },
+      {
+        "action": "reject",
+        "mode": "or",
+        "rules": [
+          {
+            "network": "udp",
+            "port": [
+              3478,
+              5349,
+              5350,
+              19302,
+              10000
+            ]
+          },
+          {
+            "domain_regex": "^stun\\..+"
+          },
+          {
+            "domain_keyword": [
+              "stun",
+              "turn"
+            ]
+          }
+        ],
+        "type": "logical"
+      },
+      {
+        "action": "route-options",
+        "udp_connect": true,
+        "udp_disable_domain_unmapping": true
+      },
+      {
+        "action": "resolve"
+      },
+      {
+        "outbound": "proxy"
+      }
+    ]
+  },
+  "services": [
+    {
+      "access_control_allow_origin": "https://sing-box-dashboard.sagernet.org",
+      "access_control_allow_private_network": true,
+      "dashboard": true,
+      "listen": "127.0.0.1",
+      "listen_port": 9091,
+      "tag": "api",
+      "type": "api"
+    }
+  ]
+}

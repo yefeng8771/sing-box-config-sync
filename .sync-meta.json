@@ -3,43 +3,56 @@
     "type": "github",
     "repo": "Repcz/Tool",
     "branch": "X",
-    "path": "sing-box",
-    "commit": "d7c4a24adf4d66de9cd5138b310f49f961d68079",
-    "files": 157,
-    "url": "https://github.com/Repcz/Tool/tree/X/sing-box"
+    "commit": "792b350fc1f9a9b494e4a38dc3b0aa14784742d8",
+    "files": 155,
+    "url": "https://github.com/Repcz/Tool/tree/X",
+    "path": "sing-box"
   },
   "pk-box": {
     "type": "github",
     "repo": "huixiao666/pk-box",
     "branch": "main",
-    "path": "beta",
-    "commit": "88e0e115774a0ed98a88a79e0df0b9e653003dd6",
-    "files": 20,
-    "url": "https://github.com/huixiao666/pk-box/tree/main/beta"
+    "commit": "a55efea6c566e1e3431f83b75201eec9ee56c1ed",
+    "files": 110,
+    "url": "https://github.com/huixiao666/pk-box/tree/main",
+    "paths": [
+      {
+        "path": "beta",
+        "dest": "sources/pk-box/beta"
+      },
+      {
+        "path": "1.14.0-alpha.reF1nd",
+        "dest": "sources/pk-box/1.14.0-alpha.reF1nd"
+      },
+      {
+        "path": "1.14.0-alpha.xxx",
+        "dest": "sources/pk-box/1.14.0-alpha.xxx"
+      }
+    ]
   },
   "gist-chizi": {
     "type": "gist",
     "gist_id": "35f59df7b17bf66ea988d775aaf76152",
-    "version": "6301f05ca2fd0e3e618537336bdbadc82969292e",
+    "version": "ad4f426fae096577dd19bf0cc730d2ad1ec197f2",
     "files": 1,
     "url": "https://gist.github.com/35f59df7b17bf66ea988d775aaf76152"
   },
   "ref1nd-docs": {
     "type": "github",
     "repo": "reF1nd/sing-box",
-    "branch": "reF1nd-testing",
-    "path": "docs",
-    "commit": "bccceeb3dabea6687212c1fff651a9bcb7733de1",
+    "branch": "reF1nd-testing-next",
+    "commit": "1740fbf355ca7648a5f911f76cff2e1b0acb3fc8",
     "files": 315,
-    "url": "https://github.com/reF1nd/sing-box/tree/reF1nd-testing/docs"
+    "url": "https://github.com/reF1nd/sing-box/tree/reF1nd-testing-next",
+    "path": "docs"
   },
   "boxproxy-box": {
     "type": "github",
     "repo": "boxproxy/box",
     "branch": "test",
-    "path": "",
     "commit": "3b9fa587ad557b2bfb7d35ff43c3fb4db1bbf5c4",
     "files": 31,
-    "url": "https://github.com/boxproxy/box/tree/test"
+    "url": "https://github.com/boxproxy/box/tree/test",
+    "path": ""
   }
 }

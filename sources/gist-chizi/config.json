@@ -35,6 +35,9 @@
   "http_clients": [
     {
       "tag": "s-download",
+      "headers": {
+        "User-Agent": "clash.meta/mihomo/alpha"
+      },
       "detour": "Proxy"
     }
   ],
@@ -169,19 +172,18 @@
     {
       "type": "ebpf",
       "tag": "ebpf-in",
-      "bypass_rule_set": [
-      ],
       "local": {
         "enabled": true,
-        "data_plane": "tc",
         "dns_mode": "respect_policy",
+        "bypass_rule_set": [
+        ],
         "include_package": [],
         "exclude_package": []
       },
       "shared": {
         "enabled": true,
-        "data_plane": "socket_assign",
-        "dns_mode": "respect_policy",
+        "bypass_rule_set": [
+        ],
         "interface": [
           "wlan2"
         ]
@@ -209,10 +211,10 @@
       "tag": "Provider1",
       "type": "remote",
       "url": "url",
+      "http_client": "s-download",
       "exclude": "节点|剩余|套餐|客服|官网",
       "path": "./source/Provider1.json",
       "update_interval": "24h",
-      "user_agent": "clash.meta/alpha/mihomo",
       "health_check": {"enabled":true,"url":"http://cp.cloudflare.com/generate_204","interval":"30m","timeout":"3s"}
     }
   ],
@@ -225,6 +227,7 @@
         "tag": "Ads_AWAvenue",
         "format": "source",
         "url": "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json",
+        "http_client": "s-download",
         "update_interval": "24h",
         "path": "./source/rule_set/Ads_AWAvenue.json"
       },
@@ -233,6 +236,7 @@
         "tag": ["geosite/category-ads-all", "geosite/apple-cn", "geosite/category-ai-!cn", "geosite/google", "geosite/geolocation-!cn", "geosite/cn", "geoip/cn", "geoip/telegram"],
         "format": "binary",
         "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/{tag}.srs",
+        "http_client": "s-download",
         "update_interval": "24h",
         "path": "./source/rule_set/{tag}.srs"
       }

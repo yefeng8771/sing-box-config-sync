@@ -269,7 +269,9 @@ TUN 接口上 DNS 的处理方式。
 |------------|-------------------------------------------------------------------------------------------------------|
 | `disabled` | 不设置原生 DNS，也不劫持 DNS 流量。                                                                    |
 | `native`   | 尽可能设置平台的原生接口 DNS：Windows 与 Apple 上的接口 DNS，Linux 上的 `systemd-resolved` 接口 DNS。   |
-| `hijack`   | 与 `native` 相同，并额外执行下文所述的 53 端口劫持。默认使用。                                         |
+| `hijack`   | 与 `native` 相同，并额外执行下文所述的 53 端口劫持。                                                  |
+
+启用 [`auto_route`](#auto_route) 时默认使用 `hijack`，否则默认使用 `disabled`。
 
 `hijack` 在 `native` 之上额外执行：
 
@@ -529,8 +531,8 @@ TUN 接口上 DNS 的处理方式。
     将指定规则集中的目标 IP CIDR 规则添加到路由，相当于添加到 `route_address`。
     不匹配的流量将绕过 sing-box 路由。
 
-    请注意，由于 Android VpnService 无法处理大量路由（DeadSystemException），
-    因此它**在 Android 图形客户端上不起作用**，但除此之外，它在所有命令行客户端和 Apple 平台上都可以正常工作。
+    请注意，由于无法处理大量路由，它**在 Android 和 Apple 图形客户端上不起作用**，
+    但除此之外，它在所有命令行客户端以及 Linux 和 Windows 图形客户端上都可以正常工作。
 
 #### route_exclude_address_set
 
@@ -554,8 +556,8 @@ TUN 接口上 DNS 的处理方式。
     将指定规则集中的目标 IP CIDR 规则添加到路由，相当于添加到 `route_exclude_address`。
     匹配的流量将绕过 sing-box 路由。
 
-    请注意，由于 Android VpnService 无法处理大量路由（DeadSystemException），
-    因此它**在 Android 图形客户端上不起作用**，但除此之外，它在所有命令行客户端和 Apple 平台上都可以正常工作。
+    请注意，由于无法处理大量路由，它**在 Android 和 Apple 图形客户端上不起作用**，
+    但除此之外，它在所有命令行客户端以及 Linux 和 Windows 图形客户端上都可以正常工作。
 
 #### endpoint_independent_nat
 

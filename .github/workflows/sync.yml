@@ -24,6 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install test dependency
+        run: python -m pip install pyyaml
       - name: Test sync and normalization
         run: python -m unittest discover -s tests -v
       - name: Sync sources

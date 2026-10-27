@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import subprocess
 import sys
@@ -8,7 +7,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-@unittest.skipUnless(importlib.util.find_spec('yaml'), 'PyYAML required')
 class BuildTests(unittest.TestCase):
     def test_fake_provider_ignores_existing_real_provider_file(self):
         with tempfile.TemporaryDirectory() as tmp:

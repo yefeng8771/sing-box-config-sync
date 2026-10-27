@@ -74,16 +74,25 @@ jobs:
           ( cd dist-bin && sha256sum sing-box-linux-* sing-box-android-* > SHA256SUMS )
           cat dist-bin/SHA256SUMS
 
-      - name: Build config + sing-box check
+      - name: Install config generator dependency
+        run: python -m pip install pyyaml
+
+      - name: Test simulated provider isolation
+        run: cd config-repo && python -m unittest discover -s tests -p test_build.py -v
+
+      - name: Generate and check router config against this build
         run: |
           set -euo pipefail
           cd config-repo
-          pip install pyyaml -q
-          python build/build.py --device router --out dist/router.json
-          python build/build.py --device phone --out dist/phone.json
+          python build/build.py --device router --fake-providers --out dist/router.json
           ../dist-bin/sing-box-check check -c dist/router.json
+
+      - name: Generate and check phone config against this build
+        run: |
+          set -euo pipefail
+          cd config-repo
+          python build/build.py --device phone --fake-providers --out dist/phone.json
           ../dist-bin/sing-box-check check -c dist/phone.json
-          echo "check OK (router + phone)"
 
       - name: Update kernel.lock
         env:

@@ -18,6 +18,9 @@ Source types:
   - "gist"  : fetch gist via API, write each file into `dest`
 """
 import json
+import hashlib
+import re
+from datetime import datetime, timezone
 import os
 import shutil
 import ssl
@@ -109,7 +112,16 @@ def sync_github(src, token):
     # --filter=blob:none + --depth=1 + --sparse: minimal download, only the paths we need
     _run(["git", "clone", "--filter=blob:none", "--sparse", "--depth=1",
           "-b", branch, url, str(work)])
-    nonempty = [p for p in paths if p]
+    if src.get("discover_version_dirs"):
+        # List top-level directories from the cloned commit, not the checkout.
+        tree = _run(["git", "-C", str(work), "ls-tree", "--name-only", "-d", "HEAD"])
+        versions = discover_version_dirs(tree.splitlines())
+        if not versions:
+            raise RuntimeError(f"no version directories found in {repo}@{branch}")
+        nonempty = versions
+    else:
+        versions = []
+        nonempty = [p for p in paths if p]
     if nonempty:
         _run(["git", "-C", str(work), "sparse-checkout", "set"] + nonempty)
     else:
@@ -118,6 +130,29 @@ def sync_github(src, token):
         _run(["git", "-C", str(work), "sparse-checkout", "disable"])
     commit = _run(["git", "-C", str(work), "rev-parse", "HEAD"]).strip()
     total_files = 0
+    if src.get("discover_version_dirs"):
+        # Build the entire selected set before replacing the target. A missing
+        # directory can never publish a partial pk-box tree.
+        stage = ROOT / f".tmp-{name}-selected"
+        if stage.exists():
+            shutil.rmtree(stage)
+        previous = ROOT / src["dest"]
+        if previous.exists():
+            shutil.copytree(previous, stage)
+        else:
+            stage.mkdir()
+        for folder in versions:
+            source = work / folder
+            if not source.is_dir():
+                raise RuntimeError(f"missing discovered directory: {folder}")
+            target = stage / folder
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(source, target)
+        total_files = sum(1 for item in stage.rglob("*") if item.is_file())
+        safe_replace(stage, ROOT / src["dest"])
+        shutil.rmtree(stage)
+        entries = []
     for path, dest in entries:
         src_dir = work / path if path else work
         if not src_dir.exists():
@@ -131,6 +166,8 @@ def sync_github(src, token):
         "type": "github", "repo": repo, "branch": branch,
         "commit": commit, "files": total_files, "url": tree_url,
     }
+    if versions:
+        meta["version_directories"] = versions
     # Keep legacy `path` key for single-path sources; use `paths` otherwise.
     if "paths" in src:
         meta["paths"] = [{"path": p, "dest": str(d.relative_to(ROOT))}
@@ -170,6 +207,31 @@ def sync_gist(src, token):
     }
 
 
+def discover_version_dirs(names):
+    """Include beta and semver-like top-level directories; never execute names."""
+    return sorted(n for n in names if n == "beta" or re.fullmatch(
+        r"[0-9]+\.[0-9]+\.[0-9]+(?:[-._][A-Za-z0-9._-]+)?", n))
+
+
+def file_snapshot(src):
+    """Hashes by path for reporting adds/changes/deletes, not security checks."""
+    roots = ([ROOT / src["dest"]] if "dest" in src else
+             [ROOT / item["dest"] for item in src.get("paths", [])])
+    files = {}
+    for base in roots:
+        if base.exists():
+            for p in base.rglob("*"):
+                if p.is_file():
+                    files[str(p.relative_to(ROOT))] = hashlib.sha256(p.read_bytes()).hexdigest()
+    return files
+
+
+def changes(before, after):
+    return (sum(k not in before for k in after),
+            sum(k in before and before[k] != v for k, v in after.items()),
+            sum(k not in after for k in before))
+
+
 def main():
     token = os.environ.get("GITHUB_TOKEN", "")
     if token:
@@ -182,8 +244,10 @@ def main():
         old_meta = json.loads(META_FILE.read_text(encoding="utf-8"))
     new_meta = {}
     failures = 0
+    summary = [f"## 上游同步 {datetime.now(timezone.utc).isoformat()} (UTC)"]
     for src in config["sources"]:
         print(f"\n=== [{src['name']}] type={src['type']} ===")
+        before = file_snapshot(src)
         try:
             if src["type"] == "github":
                 info = sync_github(src, token)
@@ -194,15 +258,27 @@ def main():
             else:
                 raise ValueError(f"unknown source type: {src['type']}")
             new_meta[src["name"]] = info
+            added, modified, deleted = changes(before, file_snapshot(src))
+            version = info.get("commit", info.get("version", "unknown"))
+            line = f"- {src['name']}: {version}; 新增 {added}, 修改 {modified}, 删除 {deleted}"
+            if info.get("version_directories"):
+                line += "; 目录: " + ", ".join(info["version_directories"])
+            summary.append(line)
         except Exception as exc:  # noqa: BLE001
             print(f"  !! FAILED: {exc}")
             failures += 1
+            summary.append(f"- {src['name']}: 失败（{type(exc).__name__}: {exc}）; 不提交本次同步")
             # Keep prior meta unchanged so a failing source does not spuriously
             # trigger a commit (its dest files are also left untouched).
             new_meta[src["name"]] = old_meta.get(src["name"], {})
     META_FILE.write_text(
         json.dumps(new_meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+    text = "\n".join(summary) + "\n"
+    print(text)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+            f.write(text)
     if failures:
         print(f"\nSync finished with {failures} failure(s).")
         return 1

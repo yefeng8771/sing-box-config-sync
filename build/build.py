@@ -222,6 +222,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="router")
     ap.add_argument("--providers", default="providers.yaml")
+    ap.add_argument("--fake-providers", action="store_true", help="always use fake providers; never read real credentials")
     ap.add_argument("--out", default=None)
     ap.add_argument("--check-only", action="store_true",
                     help="lint contracts only, don't write output")
@@ -245,7 +246,10 @@ def main() -> int:
         return 2
 
     providers_path = ROOT / args.providers
-    if providers_path.exists():
+    if args.fake_providers:
+        providers = fake_providers()
+        print("using fake local provider for check")
+    elif providers_path.exists():
         providers = yaml.safe_load(providers_path.read_text(encoding="utf-8"))["providers"]
         print(f"using {args.providers} ({len(providers)} providers)")
     else:

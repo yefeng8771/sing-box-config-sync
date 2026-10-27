@@ -31,13 +31,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python sync.py
       - name: Normalize supported sources
-        run: python normalize.py
+        run: |
+          set -o pipefail
+          python normalize.py 2>&1 | tee /tmp/normalize-sync.log
+      - name: Report normalization outcome
+        if: always()
+        run: |
+          if [ -f /tmp/normalize-sync.log ]; then
+            echo '## 文件规范化结果' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -100 /tmp/normalize-sync.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Classify raw pk-box templates
+        run: python template_status.py
       - name: Commit and push to main
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- sources normalized .sync-meta.json
+          git add -- sources normalized .sync-meta.json template-status.json
           if git diff --cached --quiet; then
             echo 'No changes to sync.'
             exit 0

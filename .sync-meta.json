@@ -13,26 +13,15 @@
     "repo": "huixiao666/pk-box",
     "branch": "main",
     "commit": "bac2f7a595f4ea77023e2719b67bf445ca3908dd",
-    "files": 118,
+    "files": 138,
     "url": "https://github.com/huixiao666/pk-box/tree/main",
-    "paths": [
-      {
-        "path": "beta",
-        "dest": "sources/pk-box/beta"
-      },
-      {
-        "path": "1.14.0-alpha.reF1nd",
-        "dest": "sources/pk-box/1.14.0-alpha.reF1nd"
-      },
-      {
-        "path": "1.14.0-alpha.xxx",
-        "dest": "sources/pk-box/1.14.0-alpha.xxx"
-      },
-      {
-        "path": "1.15.0-alpha.xxx",
-        "dest": "sources/pk-box/1.15.0-alpha.xxx"
-      }
-    ]
+    "version_directories": [
+      "1.14.0-alpha.reF1nd",
+      "1.14.0-alpha.xxx",
+      "1.15.0-alpha.xxx",
+      "beta"
+    ],
+    "path": ""
   },
   "gist-chizi": {
     "type": "gist",

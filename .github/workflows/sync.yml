@@ -2,58 +2,46 @@ name: Sync Sources
 
 on:
   schedule:
-    # daily 00:00 UTC (= 08:00 Beijing time)
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *' # 每天北京时间 08:00
   workflow_dispatch:
-    inputs:
-      note:
-        description: 'Manual sync run'
-        required: false
-        default: ''
 
 permissions:
   contents: write
-  pull-requests: write
 
-# Avoid overlapping concurrent sync runs.
+# Serialize runs; never cancel a push already in progress.
 concurrency:
   group: sync-sources
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   sync:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - name: Run sync script
+      - name: Test sync and normalization
+        run: python -m unittest discover -s tests -v
+      - name: Sync sources
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python sync.py
-
-      - name: Normalize sources
+      - name: Normalize supported sources
         run: python normalize.py
-
-      - name: Open PR with changes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit and push to main
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- sources normalized .sync-meta.json
           if git diff --cached --quiet; then
-            echo "No changes to sync — everything up to date."
+            echo 'No changes to sync.'
             exit 0
           fi
-          BRANCH="chore/sync-$(date -u +'%Y%m%d-%H%M')"
-          git checkout -b "$BRANCH"
-          git commit -m "chore(sync): auto-update sources $(date -u +'%Y-%m-%d %H:%M UTC')"
-          git push -u origin "$BRANCH"
-          gh pr create \
-            --title "chore(sync): auto-update sources $(date -u +'%Y-%m-%d')" \
-            --body "Automated upstream sync. Review normalized/ diff before merging." \
-            --base main --head "$BRANCH"
+          git commit -m "chore(sync): update upstream sources $(date -u +'%Y-%m-%d')"
+          # Fast-forward only: if main changed since checkout, fail without overwriting.
+          git push origin HEAD:refs/heads/main

@@ -10,10 +10,9 @@
 | 目录 | 类型 | 上游 | 说明 |
 | --- | --- | --- | --- |
 | `sources/repcz-tool/` | github | [`Repcz/Tool@X` / sing-box`](https://github.com/Repcz/Tool/tree/X/sing-box) | 规则集 (`Rules/`) + v1.14.x 客户端/服务端配置模板 |
-| `sources/pk-box/` | github | [`huixiao666/pk-box@main` / beta`](https://github.com/huixiao666/pk-box/tree/main/beta) | 多版本 1.14.0-beta.* 配置模板(含中文文件名与 `注释/` 子目录) |
-| `sources/gist-chizi/` | gist | [gist `35f59df7…`](https://gist.github.com/CHIZI-0618/35f59df7b17bf66ea988d775aaf76152) | CHIZI-0618 自用 `config.jsonc`(DNS 部分替换为公共 DNS) |
-| `sources/ref1nd-docs/` | github | [`reF1nd/sing-box@reF1nd-testing` / docs`](https://github.com/reF1nd/sing-box/tree/reF1nd-testing/docs) | reF1nd 分支官方文档(中英 `.md` + `schema.json` + 安装脚本) |
-| `sources/boxproxy-box/` | github | [`boxproxy/box@test`](https://github.com/boxproxy/box/tree/test) | Android Root 透明代理模块(Box for Root,Magisk/KernelSU/APatch),mihomo/sing-box/xray 统一管理(整仓镜像) |
+| `sources/pk-box/` | github | [`huixiao666/pk-box@main`](https://github.com/huixiao666/pk-box) | beta、1.14 和 1.15 alpha 配置模板 |
+| `sources/gist-chizi/` | gist | [CHIZI-0618 的 gist](https://gist.github.com/CHIZI-0618/35f59df7b17bf66ea988d775aaf76152) | 上游原始配置 |
+| `sources/ref1nd-docs/` | github | [`reF1nd/sing-box@reF1nd-testing-next`](https://github.com/reF1nd/sing-box/tree/reF1nd-testing-next/docs) | 中英文文档及 schema |
 
 ## 目录结构
 
@@ -22,19 +21,13 @@
 ```
 sources/
 ├── repcz-tool/      ← github.com/Repcz/Tool @ branch X / sing-box/
-│   ├── Rules/       规则集 (上百个 .json + .srs)
-│   └── v1.14.x/     Client / Server 配置模板
-├── pk-box/          ← github.com/huixiao666/pk-box @ main / beta/
-│   ├── *.json       各 1.14.0-beta.* 版本配置 (含中文文件名)
-│   └── 注释/         带注释的配置
-├── gist-chizi/      ← gist 35f59df7... (CHIZI-0618)
-│   └── config.jsonc 自用配置 (DNS 替换为公共 DNS)
-├── ref1nd-docs/     ← github.com/reF1nd/sing-box @ reF1nd-testing / docs/
-│   └── ...          官方文档 (中英 .md + schema.json + 安装脚本)
-└── boxproxy-box/   ← github.com/boxproxy/box @ test (整仓镜像)
-    ├── module.prop / customize.sh / update.json   Magisk/KSU 模块定义
-    ├── box/                                        核心: settings.ini + 配置 + scripts/
-    └── ...          box.service / box.iptables / box.tool 生命周期与透明代理
+│   ├── Rules/       规则集
+│   └── v1.14.x/、v1.15.x/ 配置模板
+├── pk-box/          ← beta、1.14 与 1.15 alpha 的上游原始模板
+├── gist-chizi/      ← gist 35f59df7... 的原始配置
+├── ref1nd-docs/     ← reF1nd-testing-next 的文档
+└── boxproxy-box/    ← 旧存档，已停止同步，保留原内容
+
 ```
 
 ## 工作机制
@@ -44,8 +37,10 @@ sources/
    - `github` 类型:用 `git clone --filter=blob:none --sparse --depth=1` 仅拉取目标子目录,复制到 `sources/<name>/`。**`path` 留空**则镜像整个分支(`sparse-checkout disable`),整仓复制到 `sources/<name>/`(自动排除上游 `.git`)。
    - `gist` 类型:用 Gist API 拉取文件,写入 `sources/<name>/`。带 token 时若返回 401/403(如 Actions 的 `GITHUB_TOKEN` 无 gist scope)会**自动回退匿名**重试(公开 gist 匿名可读)。
    - 每个源的 commit / version 记录到 `.sync-meta.json`。
-   - 采用「临时目录 → 原子替换」写法,某源拉取失败时其旧内容保持不变。
-3. **`.github/workflows/sync.yml`** —— GitHub Actions,每天 00:00 UTC(08:00 北京)定时触发,也可在 Actions 页手动触发(`workflow_dispatch`)。检测到变更才以 `github-actions[bot]` 身份提交并推送;无变更则跳过。
+   - 各源全部成功后才进入后续步骤；失败时不会提交或推送。
+3. **`.github/workflows/sync.yml`** —— GitHub Actions,每天 00:00 UTC(08:00 北京)定时触发,也可在 Actions 页手动触发(`workflow_dispatch`)。运行测试、拉取和规范化均成功后才以 `github-actions[bot]` 身份直接提交到 main；无变更则跳过。main 若在运行期间发生变更，非快进推送会失败，等待下一次运行，不强制覆盖。
+
+4. **`normalize.py`** —— 规范化支持的来源到 `normalized/`。`pk-box` 模板原样保存在 `sources/pk-box/`，不生成规范化副本：部分文件含占位符或不是有效 JSON，不能当成可直接运行的配置。其他来源出现 JSON 解析或输出冲突时任务失败，不提交部分结果；原有规范化文件保持不变。旧 `boxproxy-box` 文件保留但不再更新，sing-box 核心构建不受此项移除影响。
 
 ## 添加 / 修改源
 

@@ -6,7 +6,7 @@ sub-directories) or the GitHub Gist API (for gists), writes the results into
 their dest dirs, and records each source's commit/version into .sync-meta.json.
 
 This script ONLY synchronizes files and metadata. It does NOT git commit — the
-CI workflow is responsible for opening a PR with any detected changes.
+CI workflow is responsible for committing validated changes to main.
 
 Source types:
   - "github": clone repo@branch with --sparse, checkout the given path(s),

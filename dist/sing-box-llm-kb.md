@@ -1,6 +1,6 @@
 # sing-box 跨版本演进权威知识库 (1.8 → 1.15 reF1nd-testing-next)
 
-> 文档基准：`reF1nd-testing-next` (`3cf2b01ce8eb`) | 锁定内核：`440f7a133539` | 上游规则：`Repcz/Tool` (`f65c800580b7`) | 模板：`pk-box` (`bac2f7a595f4`)
+> 文档基准：`reF1nd-testing-next` (`3cf2b01ce8eb`) | 锁定内核：`440f7a133539` | 上游规则：`Repcz/Tool` (`16eaad60dae3`) | 模板：`pk-box` (`bac2f7a595f4`)
 
 本知识库由 `build/extract_kb.py` 从上游官方文档 (`deprecated.zh.md`、`migration.zh.md`、`schema.json`) 与实战带注释模板 (`sources/pk-box`) 自动蒸馏生成，版本锚点取自 `.sync-meta.json` 与 `kernel.lock`，供 LLM / AI Skill / 自动化迁移器直接作为上下文使用。产物为确定性输出（不含生成时间戳），只在输入变化时更新。
 

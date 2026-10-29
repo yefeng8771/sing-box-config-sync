@@ -1,0 +1,2643 @@
+{
+  "summary": {
+    "total": 148,
+    "clean_115": 5,
+    "auto_migrated": 113,
+    "unparseable_template": 30
+  },
+  "custom_redline_check": "PASS",
+  "custom_redline_issues": [],
+  "files": [
+    {
+      "file": "normalized/repcz-tool/v1.14.x/Client/sing-box.example.bridge.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[1].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.14.x/Client/sing-box.example.fakeip.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[1].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.14.x/Client/sing-box.example.nofakeip.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[1].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.14.x/Client/sing-box.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[1].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.14.x/Server/sing-box.example.json",
+      "status": "1.15-compliant",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.14.x/Server/sing-box.example.tun.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[3].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.14.x/Server/sing-box.json",
+      "status": "1.15-compliant",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.15.x/Clinet/sing-box.json",
+      "status": "1.15-compliant",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/repcz-tool/v1.15.x/Server/sing-box.example.tun.json",
+      "status": "1.15-compliant",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "normalized/gist-chizi/config.json",
+      "status": "1.15-compliant",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.12-16-reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 17,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[0].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[1].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[2].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[3].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[4].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[5].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[6].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[7].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[8].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[9].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[10].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[11].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[12].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[13].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[14].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[15].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.17.reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-114-IMPLICIT-HTTP-CLIENT",
+          "path": "route.default_http_client",
+          "before": "未定义 http_clients（1.14 废弃隐式 HTTP 客户端）",
+          "after": "显式声明顶层 http_clients 与 \"default_http_client\": \"default-hc\""
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.21.reF1nd.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 183 column 22 (char 3604)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.26.reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.27.reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.31.reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.43.reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.50.reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.reF1nd-beta.10.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.reF1nd-beta.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.reF1nd-beta.2.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.reF1nd-beta.2优化.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.reF1nd-beta.4.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.reF1nd-beta.8.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.14.0-alpha.reF1nd12-21完整注释.json",
+      "status": "auto-migratable",
+      "migrations_needed": 17,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[0].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[1].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[2].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[3].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[4].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[5].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[6].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[7].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[8].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[9].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[10].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[11].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[12].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[13].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[14].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[15].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.reF1nd/1.15.0-alpha.reF1nd/1.15.0-alpha.8.reF1nd.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.12优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 17,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[0].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[1].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[2].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[3].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[4].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[5].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[6].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[7].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[8].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[9].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[10].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[11].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[12].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[13].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[14].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        },
+        {
+          "rule_id": "MIG-114-DOWNLOAD-DETOUR",
+          "path": "route.rule_set[15].download_detour",
+          "before": "\"download_detour\": \"PROXY\"",
+          "after": "替换为 \"http_client\": \"hc-proxy\" 并注册顶层 http_clients"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.14优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.15修复优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.16-17(不修改).json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.18优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.18强化版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting ',' delimiter: line 395 column 29 (char 8472)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.18稳定版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.18精简版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[8]",
+          "before": "{\"type\": \"block\", \"tag\": \"block\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.20优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.20卓越版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 505 column 22 (char 10631)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.20精简版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting ',' delimiter: line 136 column 5 (char 2684)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.21-tor版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 563 column 22 (char 11778)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.21优化版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 420 column 22 (char 8555)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.21版本.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 530 column 22 (char 11150)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.21特殊版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 423 column 22 (char 8585)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.22-tor版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 549 column 22 (char 11556)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.22优化版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 394 column 22 (char 7989)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.23.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 352 column 22 (char 7133)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.23优化版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 387 column 22 (char 7821)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.24.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 479 column 22 (char 10179)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.24优化版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 468 column 22 (char 9784)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.24修复版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 474 column 22 (char 9906)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.24精简版(不推荐).json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Invalid control character at: line 122 column 22 (char 2310)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.25修复优化版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 539 column 22 (char 11302)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.25停止使用.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 531 column 22 (char 11083)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.25精致优化.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"block\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.26.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"block\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.26优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"block\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.26修复v4版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[7]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.27-114dns版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[8]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.27.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 474 column 22 (char 9888)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.28-114版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[8]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.28.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.29.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.31.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.31优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.31修复版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.31深度优化.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[14]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.32.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[14]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.32简化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.33.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting ',' delimiter: line 146 column 9 (char 2625)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.34.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.35.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.36.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.37.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.38.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.39.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.39优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 17,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[3].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[4].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[5].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[6].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[7].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[8].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[9].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[10].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[11].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[12].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[13].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[14].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[15].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[16].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[17].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        },
+        {
+          "rule_id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+          "path": "outbounds[18].domain_strategy",
+          "before": "\"domain_strategy\": \"prefer_ipv4\"",
+          "after": "\"domain_resolver\": {\"server\": \"ggdns\", \"strategy\": \"prefer_ipv4\"}"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.40.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.41.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.41优化.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.42.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.42优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.42去广告.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/1.14.0-alpha.50.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.12-17.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.18.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Extra data: line 960 column 1 (char 26369)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.20.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 465 column 45 (char 9144)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.21.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Extra data: line 511 column 1 (char 19289)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.22.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 487 column 22 (char 11034)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.23.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[7]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.24.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting property name enclosed in double quotes: line 1951 column 9 (char 76488)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.25.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[7]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.25fakeip版.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting ',' delimiter: line 414 column 23 (char 5059)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.26.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting property name enclosed in double quotes: line 772 column 5 (char 20101)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.27.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting value: line 677 column 22 (char 14410)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.29.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.31.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[6]",
+          "before": "{\"type\": \"block\", \"tag\": \"REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.32.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting ',' delimiter: line 700 column 7 (char 11962)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.33.json",
+      "status": "unparseable-placeholder-template",
+      "parse_error": "Expecting ',' delimiter: line 319 column 9 (char 10853)",
+      "migrations_needed": 0,
+      "applied_rules": [],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.35.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.38.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.40.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-alpha.xxx/对比注释/1.14.0-alpha.42.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.10.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.12.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.15.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.15优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"gvisor\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.2.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.2优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.2深度优化.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.2竞争版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.2规则直连.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.3.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.4.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.5.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.7.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.8.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.14.0-beta.9.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.12.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.2.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.3.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.4.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.8.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.2.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.10.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.12.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.15.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.15优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"gvisor\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.2.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.2优化版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.2深度优化.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.2竞争版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.2规则直连.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.3.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.4.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.5.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.7.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.8.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/1.14.0-beta.9.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/注释/1.14.0-beta.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/注释/1.14.0-beta.2.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/注释/1.14.0-beta.2深度版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/beta/注释/1.14.0-beta.3.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/注释/1.14.0-beta.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/注释/1.14.0-beta.2.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"system\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/注释/1.14.0-beta.2深度版.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/注释/1.14.0-beta.3.json",
+      "status": "auto-migratable",
+      "migrations_needed": 2,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-115-TUN-STACK",
+          "path": "inbounds[0].stack",
+          "before": "\"stack\": \"mixed\"",
+          "after": "移除 stack 参数（默认启用 1.15 sing-tun 原生新栈）"
+        },
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[1]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    }
+  ]
+}

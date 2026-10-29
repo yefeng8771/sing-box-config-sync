@@ -1,0 +1,849 @@
+{
+  "metadata": {
+    "generated_at": "2026-10-29T11:40:01Z",
+    "ref1nd_docs_commit": "3cf2b01ce8ebbf6070616125b38c866a0b350309",
+    "repcz_tool_commit": "f65c800580b77bd41ebb927a2d65ed5dc8e9ec35",
+    "pk_box_commit": "bac2f7a595f4ea77023e2719b67bf445ca3908dd",
+    "kernel_commit": "440f7a1335395897c655c959a38bc98bf0200309"
+  },
+  "schema_summary": {
+    "schema_id": "https://raw.githubusercontent.com/reF1nd/sing-box/reF1nd-testing/docs/schema.json",
+    "top_level_properties": [
+      "$schema",
+      "certificate",
+      "certificate_providers",
+      "dns",
+      "endpoints",
+      "experimental",
+      "http_clients",
+      "inbounds",
+      "log",
+      "network_namespaces",
+      "ntp",
+      "outbounds",
+      "providers",
+      "route",
+      "services"
+    ],
+    "definitions_count": 111,
+    "dns_server_types": [
+      "dhcp",
+      "fakeip",
+      "group",
+      "h3",
+      "hosts",
+      "https",
+      "local",
+      "mdns",
+      "openconnect",
+      "openvpn",
+      "quic",
+      "resolved",
+      "tailscale",
+      "tcp",
+      "tls",
+      "udp"
+    ],
+    "inbound_types": [
+      "anytls",
+      "cloudflared",
+      "direct",
+      "ebpf",
+      "http",
+      "hysteria",
+      "hysteria2",
+      "mixed",
+      "naive",
+      "redirect",
+      "shadowsocks",
+      "shadowtls",
+      "socks",
+      "tailcat",
+      "tproxy",
+      "trojan",
+      "tuic",
+      "tun",
+      "vless",
+      "vmess"
+    ],
+    "outbound_types": [
+      "anytls",
+      "block",
+      "bridge",
+      "direct",
+      "http",
+      "hysteria",
+      "hysteria2",
+      "loadbalance",
+      "naive",
+      "pass",
+      "selector",
+      "shadowsocks",
+      "shadowtls",
+      "socks",
+      "ssh",
+      "tailcat",
+      "tor",
+      "trojan",
+      "tuic",
+      "urltest",
+      "vless",
+      "vmess"
+    ],
+    "endpoint_types": [
+      "masque-client",
+      "masque-server",
+      "openconnect",
+      "openvpn-client",
+      "openvpn-server",
+      "tailscale",
+      "wireguard"
+    ],
+    "service_types": [
+      "api",
+      "ccm",
+      "derp",
+      "hysteria-realm",
+      "ocm",
+      "oom-killer",
+      "resolved",
+      "ssm-api",
+      "usbip-client"
+    ]
+  },
+  "ast_rules": [
+    {
+      "id": "MIG-115-TUN-STACK",
+      "version_deprecated": "1.15.0",
+      "version_removed": "1.17.0",
+      "severity": "error",
+      "path": "inbounds[type=tun].stack",
+      "title": "移除废弃的 TUN stack 参数（启用 1.15 sing-tun 原生新栈）",
+      "action": "delete_key",
+      "rationale": "自 1.15.0 起 sing-tun 使用自有 TCP/IP 栈，性能、能效与内存占用全面领先，且为 multi_queue 的前提。"
+    },
+    {
+      "id": "MIG-114-DOWNLOAD-DETOUR",
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "severity": "error",
+      "path": "route.rule_set[*].download_detour / providers[*].download_detour",
+      "title": "将 download_detour 迁移为共享 http_clients 与 http_client 引用",
+      "action": "lift_to_http_clients",
+      "rationale": "1.14.0 废弃了规则集与 Provider 上的 download_detour 以及隐式默认 HTTP 客户端，要求显式声明顶层 http_clients 和 route.default_http_client。"
+    },
+    {
+      "id": "MIG-114-IMPLICIT-HTTP-CLIENT",
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "severity": "warning",
+      "path": "http_clients / route.default_http_client",
+      "title": "为远程规则集/Provider 显式补全 http_clients 与 route.default_http_client",
+      "action": "ensure_explicit_http_client",
+      "rationale": "1.14.0 起未配置 http_clients 和 default_http_client 的隐式默认 HTTP 客户端已废弃，将在 1.16.0 移除。"
+    },
+    {
+      "id": "MIG-114-TLS-ACME",
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "severity": "error",
+      "path": "inbounds[*].tls.acme",
+      "title": "将内联 tls.acme 迁移为 tls.certificate_provider",
+      "action": "rewrite_tls_acme",
+      "rationale": "1.14.0 废弃了 TLS 内联 acme 字段，统一改为内联或共享的 ACME certificate_provider。"
+    },
+    {
+      "id": "MIG-114-DNS-INDEPENDENT-CACHE",
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "severity": "error",
+      "path": "dns.independent_cache",
+      "title": "移除废弃的 dns.independent_cache 选项",
+      "action": "delete_key",
+      "rationale": "1.14.0 废弃了 independent_cache，推荐使用 dns.optimistic 乐观缓存配合 cache_file.store_dns。"
+    },
+    {
+      "id": "MIG-114-CACHE-STORE-RDRC",
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "severity": "error",
+      "path": "experimental.cache_file.store_rdrc",
+      "title": "将 experimental.cache_file.store_rdrc 替换为 store_dns",
+      "action": "replace_key_with_store_dns",
+      "rationale": "store_rdrc 已在 1.14.0 废弃，store_dns 可将完整 DNS 缓存持久化到 cache.db。"
+    },
+    {
+      "id": "MIG-114-DNS-RULE-LEGACY",
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "severity": "error",
+      "path": "dns.rules[*].(strategy|rule_set_ip_cidr_accept_empty|ip_cidr|ip_is_private)",
+      "title": "清理废弃 DNS 规则项并为地址筛选字段补全 match_response",
+      "action": "upgrade_dns_rules_114",
+      "rationale": "1.14.0 废弃了 DNS 规则中的 strategy 与 rule_set_ip_cidr_accept_empty；使用 ip_cidr 或 ip_is_private 必须配合 evaluate 与 match_response。"
+    },
+    {
+      "id": "MIG-112-DNS-SERVERS",
+      "version_deprecated": "1.12.0",
+      "version_removed": "1.14.0",
+      "severity": "error",
+      "path": "dns.servers[*].address / dns.fakeip",
+      "title": "将 1.11 旧版字符串 address DNS 服务器重构为 1.12+ 强类型服务器对象",
+      "action": "rewrite_legacy_dns_servers",
+      "rationale": "1.12.0 重构了 DNS 服务器格式（已于 1.14.0 移除旧格式），address 拆分为 type + server，address_resolver 改为 domain_resolver，fakeip 内聚为 type=fakeip 服务器。"
+    },
+    {
+      "id": "MIG-112-OUTBOUND-DNS-RULE",
+      "version_deprecated": "1.12.0",
+      "version_removed": "1.14.0",
+      "severity": "error",
+      "path": "dns.rules[*].outbound / route.default_domain_resolver",
+      "title": "将废弃的 outbound:any DNS 规则迁移为 route.default_domain_resolver",
+      "action": "migrate_outbound_dns_rule",
+      "rationale": "1.12.0 废弃了通过 dns.rules.outbound 解析节点域名的做法，要求显式指定 route.default_domain_resolver 或 outbound.domain_resolver 以避免自举死锁。"
+    },
+    {
+      "id": "MIG-112-DIAL-DOMAIN-STRATEGY",
+      "version_deprecated": "1.12.0",
+      "version_removed": "1.14.0",
+      "severity": "error",
+      "path": "outbounds[*].domain_strategy",
+      "title": "将出站拨号字段 domain_strategy 迁移为 domain_resolver",
+      "action": "migrate_outbound_domain_strategy",
+      "rationale": "拨号字段中的 domain_strategy 已在 1.12.0 废弃，统一使用 domain_resolver.strategy。"
+    },
+    {
+      "id": "MIG-111-SPECIAL-OUTBOUNDS",
+      "version_deprecated": "1.11.0",
+      "version_removed": "1.13.0",
+      "severity": "error",
+      "path": "outbounds[type=block|dns] -> route.rules[*].action",
+      "title": "移除 block/dns 特殊出站并迁移为路由规则动作 (reject / hijack-dns)",
+      "action": "rewrite_special_outbounds",
+      "rationale": "1.11.0 废弃并在 1.13.0 移除了 block 与 dns 特殊出站，改为在 route.rules 中使用 action: reject 与 action: hijack-dns。"
+    },
+    {
+      "id": "MIG-111-INBOUND-SNIFF",
+      "version_deprecated": "1.11.0",
+      "version_removed": "1.13.0",
+      "severity": "error",
+      "path": "inbounds[*].(sniff|sniff_override_destination|sniff_timeout|domain_strategy)",
+      "title": "将入站上的旧版 sniff 与 domain_strategy 提取为 route.rules 顶部动作",
+      "action": "hoist_inbound_sniff_and_strategy",
+      "rationale": "1.11.0 废弃并在 1.13.0 移除了入站嗅探与域名策略字段，统一收归到 route.rules 的 sniff 与 resolve 规则动作中。"
+    },
+    {
+      "id": "MIG-110-TUN-ADDRESS",
+      "version_deprecated": "1.10.0",
+      "version_removed": "1.12.0",
+      "severity": "error",
+      "path": "inbounds[type=tun].inet4_address / inet6_address",
+      "title": "合并 TUN 入站中分离的 IPv4/IPv6 地址与路由段字段",
+      "action": "merge_tun_inet_addresses",
+      "rationale": "1.10.0 将 inet4_address/inet6_address 合并为 address 数组，route_address 与 route_exclude_address 同理。"
+    },
+    {
+      "id": "MIG-108-CLASH-CACHE",
+      "version_deprecated": "1.8.0",
+      "version_removed": "1.10.0",
+      "severity": "error",
+      "path": "experimental.clash_api.cache_file",
+      "title": "将 experimental.clash_api 下的旧版缓存字段迁移至 experimental.cache_file",
+      "action": "migrate_clash_api_cache",
+      "rationale": "1.8.0 起缓存文件独立为 experimental.cache_file 模块。"
+    }
+  ],
+  "deprecated_items": [
+    {
+      "version_deprecated": "1.15.0",
+      "version_removed": "1.17.0",
+      "title": "TUN `stack` 参数",
+      "description": "TUN 的 `stack` 参数已废弃，并将在 sing-box 1.17.0 中被移除。 自 1.15.0 起，sing-tun 使用自有 TCP/IP stack，极限性能、能效以及内存占用均大幅领先于所有旧实现。 移除 `stack` 参数以使用，参阅[迁移指南](/zh/migration/#迁移-tun-stack)。",
+      "migration_anchor": "/zh/migration/#迁移-tun-stack"
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "旧版远程规则集 `download_detour` 选项",
+      "description": "旧版远程规则集 `download_detour` 选项已废弃， 请使用 `http_client` 代替。 旧字段将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "隐式默认 HTTP 客户端",
+      "description": "使用默认出站为远程规则集隐式创建默认 HTTP 客户端的行为已废弃。 请显式配置 `http_clients` 和 `route.default_http_client`。 旧行为将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "TLS 中的内联 ACME 选项",
+      "description": "TLS 中的内联 ACME 选项（`tls.acme`）已废弃， 且可以通过 ACME 证书提供者替代， 参阅 [迁移指南](/zh/migration/#迁移内联-acme-到证书提供者)。 旧字段将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移内联-acme-到证书提供者"
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "旧版 DNS 规则动作 `strategy` 选项",
+      "description": "旧版 DNS 规则动作 `strategy` 选项已废弃。 旧字段将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "旧版 `rule_set_ip_cidr_accept_empty` DNS 规则项",
+      "description": "旧版 `rule_set_ip_cidr_accept_empty` DNS 规则项已废弃， 参阅[迁移指南](/zh/migration/#迁移地址筛选字段到响应匹配)。 旧字段将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移地址筛选字段到响应匹配"
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "`independent_cache` DNS 选项",
+      "description": "`independent_cache` DNS 选项已废弃， 参阅[迁移指南](/zh/migration/#迁移-independent-dns-cache)。 旧字段将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移-independent-dns-cache"
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "`store_rdrc` 缓存文件选项",
+      "description": "`store_rdrc` 缓存文件选项已废弃， 参阅[迁移指南](/zh/migration/#迁移-store_rdrc)。 旧字段将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移-store_rdrc"
+    },
+    {
+      "version_deprecated": "1.14.0",
+      "version_removed": "1.16.0",
+      "title": "旧版地址筛选字段 (DNS 规则)",
+      "description": "旧版地址筛选字段（不使用 `match_response` 的 `ip_cidr`、`ip_is_private`）已废弃， 参阅[迁移指南](/zh/migration/#迁移地址筛选字段到响应匹配)。 旧行为将在 sing-box 1.16.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移地址筛选字段到响应匹配"
+    },
+    {
+      "version_deprecated": "1.12.0",
+      "version_removed": "1.14.0",
+      "title": "旧的 DNS 服务器格式",
+      "description": "DNS 服务器已重构， 参阅 [迁移指南](/zh/migration/#迁移到新的-dns-服务器格式). 旧格式已在 sing-box 1.14.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移到新的-dns-服务器格式"
+    },
+    {
+      "version_deprecated": "1.12.0",
+      "version_removed": null,
+      "title": "`outbound` DNS 规则项",
+      "description": "旧的 `outbound` DNS 规则已废弃， 且可被拨号字段代替， 参阅 [迁移指南](/zh/migration/#迁移-outbound-dns-规则项到域解析选项).",
+      "migration_anchor": "/zh/migration/#迁移-outbound-dns-规则项到域解析选项"
+    },
+    {
+      "version_deprecated": "1.12.0",
+      "version_removed": "1.13.0",
+      "title": "旧的 ECH 字段",
+      "description": "ECH 支持已在 sing-box 1.12.0 迁移至使用标准库，但标准库不支持后量子对等证书签名方案， 因此 `pq_signature_schemes_enabled` 已被弃用且不再工作。 另外，`dynamic_record_sizing_disabled` 与 ECH 无关，是错误添加的，现已弃用且不再工作。 相关字段已在 sing-box 1.13.0 中被移除。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.11.0",
+      "version_removed": "1.13.0",
+      "title": "旧的特殊出站",
+      "description": "旧的特殊出站（`block` / `dns`）已废弃且可以通过规则动作替代， 参阅 [迁移指南](/zh/migration/#迁移旧的特殊出站到规则动作)。 旧字段已在 sing-box 1.13.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移旧的特殊出站到规则动作"
+    },
+    {
+      "version_deprecated": "1.11.0",
+      "version_removed": "1.13.0",
+      "title": "旧的入站字段",
+      "description": "旧的入站字段（`inbound.<sniff/domain_strategy/...>`）已废弃且可以通过规则动作替代， 参阅 [迁移指南](/zh/migration/#迁移旧的入站字段到规则动作)。 旧字段已在 sing-box 1.13.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移旧的入站字段到规则动作"
+    },
+    {
+      "version_deprecated": "1.11.0",
+      "version_removed": "1.13.0",
+      "title": "direct 出站中的目标地址覆盖字段",
+      "description": "direct 出站中的目标地址覆盖字段（`override_address` / `override_port`）已废弃且可以通过规则动作替代， 参阅 [迁移指南](/zh/migration/#迁移-direct-出站中的目标地址覆盖字段到路由字段)。 旧字段已在 sing-box 1.13.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移-direct-出站中的目标地址覆盖字段到路由字段"
+    },
+    {
+      "version_deprecated": "1.11.0",
+      "version_removed": "1.13.0",
+      "title": "WireGuard 出站",
+      "description": "WireGuard 出站已废弃且可以通过端点替代， 参阅 [迁移指南](/zh/migration/#迁移-wireguard-出站到端点)。 旧出站已在 sing-box 1.13.0 中被移除。",
+      "migration_anchor": "/zh/migration/#迁移-wireguard-出站到端点"
+    },
+    {
+      "version_deprecated": "1.11.0",
+      "version_removed": "1.13.0",
+      "title": "TUN 的 GSO 字段",
+      "description": "GSO 对透明代理场景没有优势，已废弃且在 TUN 中不再起作用。 旧字段已在 sing-box 1.13.0 中被移除。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.10.0",
+      "version_removed": "1.11.0",
+      "title": "Match source 规则项已重命名",
+      "description": "`rule_set_ipcidr_match_source` 路由和 DNS 规则项已被重命名为 `rule_set_ip_cidr_match_source` 且已在 sing-box 1.11.0 中被移除。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.10.0",
+      "version_removed": "1.12.0",
+      "title": "TUN 地址字段已合并",
+      "description": "`inet4_address` 和 `inet6_address` 已合并为 `address`， `inet4_route_address` 和 `inet6_route_address` 已合并为 `route_address`， `inet4_route_exclude_address` 和 `inet6_route_exclude_address` 已合并为 `route_exclude_address`。 旧字段已在 sing-box 1.12.0 中被移除。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.10.0",
+      "version_removed": null,
+      "title": "移除对 go1.18 和 go1.19 的支持",
+      "description": "由于维护困难，sing-box 1.10.0 要求至少 Go 1.20 才能编译。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.8.0",
+      "version_removed": null,
+      "title": "Clash API 中的 Cache file 及相关功能",
+      "description": "Clash API 中的 `cache_file` 及相关功能已废弃且已迁移到独立的 `cache_file` 设置， 参阅 [迁移指南](/zh/migration/#将缓存文件从-clash-api-迁移到独立选项)。",
+      "migration_anchor": "/zh/migration/#将缓存文件从-clash-api-迁移到独立选项"
+    },
+    {
+      "version_deprecated": "1.8.0",
+      "version_removed": "1.12.0",
+      "title": "GeoIP",
+      "description": "GeoIP 已废弃且已在 sing-box 1.12.0 中被移除。 maxmind GeoIP 国家数据库作为 IP 分类数据库，不完全适合流量绕过， 且现有的实现均存在内存使用大与管理困难的问题。 sing-box 1.8.0 引入了[规则集](/zh/configuration/rule-set/)， 可以完全替代 GeoIP， 参阅 [迁移指南](/zh/migration/#迁移-geoip-到规则集)。",
+      "migration_anchor": "/zh/migration/#迁移-geoip-到规则集"
+    },
+    {
+      "version_deprecated": "1.8.0",
+      "version_removed": "1.12.0",
+      "title": "Geosite",
+      "description": "Geosite 已废弃且已在 sing-box 1.12.0 中被移除。 Geosite，即由 V2Ray 维护的 domain-list-community 项目，作为早期流量绕过解决方案， 存在着包括缺少维护、规则不准确和管理困难内的大量问题。 sing-box 1.8.0 引入了[规则集](/zh/configuration/rule-set/)， 可以完全替代 Geosite，参阅 [迁移指南](/zh/migration/#迁移-geosite-到规则集)。",
+      "migration_anchor": "/zh/migration/#迁移-geosite-到规则集"
+    },
+    {
+      "version_deprecated": "1.6.0",
+      "version_removed": null,
+      "title": "ShadowsocksR",
+      "description": "ShadowsocksR 支持从未默认启用，自从常用的黑产代理销售面板停止使用该协议，继续维护它是没有意义的。",
+      "migration_anchor": null
+    },
+    {
+      "version_deprecated": "1.6.0",
+      "version_removed": null,
+      "title": "Proxy Protocol",
+      "description": "Proxy Protocol 支持由 Pull Request 添加，存在问题且仅由 HTTP 多路复用器（如 nginx）的后端使用，具有侵入性，对于代理目的毫无意义。",
+      "migration_anchor": null
+    }
+  ],
+  "migration_sections": [
+    {
+      "version": "1.15.0",
+      "title": "迁移 TUN stack",
+      "summary": "自 1.15.0 起，sing-tun 使用自有 TCP/IP stack，极限性能、能效以及内存占用均大幅领先于所有旧实现。 移除 `stack` 参数以使用。 `stack` 参数自 sing-box 1.15.0 起废弃，并将在 sing-box 1.17.0 中被移除。",
+      "deprecated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"tun\",\n  \"address\": [\"172.18.0.1/30\"],\n  \"stack\": \"system\"\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"tun\",\n  \"address\": [\"172.18.0.1/30\"]\n}\n]\n}"
+      ]
+    },
+    {
+      "version": "1.14.0",
+      "title": "迁移 macOS standalone 客户端数据",
+      "summary": "Apple 平台客户端已迁移至新的 Apple 开发者账户，因此 macOS standalone 客户端是一个新应用， 配置文件与设置不会被继承。 在启动 sing-box 1.14.0-rc.2 或更高版本之前，可使用以下命令迁移：",
+      "deprecated_examples": [],
+      "migrated_examples": []
+    },
+    {
+      "version": "1.14.0",
+      "title": "迁移内联 ACME 到证书提供者",
+      "summary": "TLS 中的内联 ACME 选项已废弃，且可以被证书提供者替代。 `tls.acme` 的大多数字段都可以原样迁移到 ACME 证书提供者中。 sing-box 1.14.0 新增字段参阅 [ACME](/zh/configuration/shared/certificate-provider/acme/) 页面。",
+      "deprecated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"trojan\",\n  \"tls\": {\n    \"enabled\": true,\n    \"acme\": {\n      \"domain\": [\"example.com\"],\n      \"email\": \"admin@example.com\"\n    }\n  }\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"trojan\",\n  \"tls\": {\n    \"enabled\": true,\n    \"certificate_provider\": {\n      \"type\": \"acme\",\n      \"domain\": [\"example.com\"],\n      \"email\": \"admin@example.com\"\n    }\n  }\n}\n]\n}",
+        "{\n\"certificate_providers\": [\n{\n  \"type\": \"acme\",\n  \"tag\": \"my-cert\",\n  \"domain\": [\"example.com\"],\n  \"email\": \"admin@example.com\"\n}\n],\n\"inbounds\": [\n{\n  \"type\": \"trojan\",\n  \"tls\": {\n    \"enabled\": true,\n    \"certificate_provider\": \"my-cert\"\n  }\n}\n]\n}"
+      ]
+    },
+    {
+      "version": "1.14.0",
+      "title": "迁移地址筛选字段到响应匹配",
+      "summary": "旧版地址筛选字段（不使用 `match_response` 的 `ip_cidr`、`ip_is_private`）已废弃， 旧版 `rule_set_ip_cidr_accept_empty` DNS 规则项也已废弃。当 DNS 规则使用了 sing-box 1.14.0 新增的功能（例如 `evaluate`、`match_response` 或 `ip_version`）时，",
+      "deprecated_examples": [
+        "{\n\"dns\": {\n\"rules\": [\n  {\n    \"rule_set\": \"geoip-cn\",\n    \"action\": \"route\",\n    \"server\": \"local\"\n  },\n  {\n    \"action\": \"route\",\n    \"server\": \"remote\"\n  }\n]\n}\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"dns\": {\n\"rules\": [\n  {\n    \"action\": \"evaluate\",\n    \"server\": \"remote\"\n  },\n  {\n    \"match_response\": true,\n    \"rule_set\": \"geoip-cn\",\n    \"action\": \"route\",\n    \"server\": \"local\"\n  },\n  {\n    \"action\": \"route\",\n    \"server\": \"remote\"\n  }\n]\n}\n}"
+      ]
+    },
+    {
+      "version": "1.14.0",
+      "title": "迁移 independent DNS cache",
+      "summary": "`independent_cache` 已废弃，直接移除该字段即可。",
+      "deprecated_examples": [
+        "{\n\"dns\": {\n\"independent_cache\": true\n}\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"dns\": {}\n}"
+      ]
+    },
+    {
+      "version": "1.14.0",
+      "title": "迁移 store_rdrc",
+      "summary": "`store_rdrc` 已废弃，且可以被 `store_dns` 替代， 后者将完整的 DNS 缓存持久化到缓存文件中。",
+      "deprecated_examples": [
+        "{\n\"experimental\": {\n\"cache_file\": {\n  \"enabled\": true,\n  \"store_rdrc\": true\n}\n}\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"experimental\": {\n\"cache_file\": {\n  \"enabled\": true,\n  \"store_dns\": true\n}\n}\n}"
+      ]
+    },
+    {
+      "version": "1.14.0",
+      "title": "DNS 规则中的 ip_version 和 query_type 行为更改",
+      "summary": "在 sing-box 1.14.0 中，DNS 规则中的 行为有两项更改。 其一，当 DNS 规则被未指定具体 DNS 服务器的内部域名解析匹配时，这些字段现在也会生效，",
+      "deprecated_examples": [],
+      "migrated_examples": []
+    },
+    {
+      "version": "1.12.0",
+      "title": "迁移到新的 DNS 服务器格式",
+      "summary": "DNS 服务器已经重构。",
+      "deprecated_examples": [
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"local\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"tcp://1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"tls://1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"https://1.1.1.1/dns-query\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"quic://1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"h3://1.1.1.1/dns-query\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"dhcp://auto\"\n      },\n      {\n        \"address\": \"dhcp://en0\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"1.1.1.1\"\n      },\n      {\n        \"address\": \"fakeip\",\n        \"tag\": \"fakeip\"\n      }\n    ],\n    \"rules\": [\n      {\n        \"query_type\": [\n          \"A\",\n          \"AAAA\"\n        ],\n        \"server\": \"fakeip\"\n      }\n    ],\n    \"fakeip\": {\n      \"enabled\": true,\n      \"inet4_range\": \"198.18.0.0/15\",\n      \"inet6_range\": \"2001:2::/48\"\n    }\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"rcode://refused\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"https://dns.google/dns-query\",\n        \"address_resolver\": \"google\"\n      },\n      {\n        \"tag\": \"google\",\n        \"address\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"1.1.1.1\",\n        \"strategy\": \"ipv4_only\"\n      },\n      {\n        \"tag\": \"google\",\n        \"address\": \"8.8.8.8\",\n        \"strategy\": \"prefer_ipv6\"\n      }\n    ],\n    \"rules\": [\n      {\n        \"domain\": \"google.com\",\n        \"server\": \"google\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"address\": \"1.1.1.1\"\n      },\n      {\n        \"tag\": \"google\",\n        \"address\": \"8.8.8.8\",\n        \"client_subnet\": \"1.1.1.1\"\n      }\n    ]\n  }\n}"
+      ],
+      "migrated_examples": [
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"local\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"tcp\",\n        \"server\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"udp\",\n        \"server\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"tls\",\n        \"server\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"https\",\n        \"server\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"quic\",\n        \"server\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"h3\",\n        \"server\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"dhcp\",\n      },\n      {\n        \"type\": \"dhcp\",\n        \"interface\": \"en0\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"udp\",\n        \"server\": \"1.1.1.1\"\n      },\n      {\n        \"type\": \"fakeip\",\n        \"tag\": \"fakeip\",\n        \"inet4_range\": \"198.18.0.0/15\",\n        \"inet6_range\": \"2001:2::/48\"\n      }\n    ],\n    \"rules\": [\n      {\n        \"query_type\": [\n          \"A\",\n          \"AAAA\"\n        ],\n        \"server\": \"fakeip\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"rules\": [\n      {\n        \"domain\": [\n          \"example.com\"\n        ],\n        // 其它规则\n        \n        \"action\": \"predefined\",\n        \"rcode\": \"REFUSED\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"https\",\n        \"server\": \"dns.google\",\n        \"domain_resolver\": \"google\"\n      },\n      {\n        \"type\": \"udp\",\n        \"tag\": \"google\",\n        \"server\": \"1.1.1.1\"\n      }\n    ]\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"udp\",\n        \"server\": \"1.1.1.1\"\n      },\n      {\n        \"type\": \"udp\",\n        \"tag\": \"google\",\n        \"server\": \"8.8.8.8\"\n      }\n    ],\n    \"rules\": [\n      {\n        \"domain\": \"google.com\",\n        \"server\": \"google\",\n        \"strategy\": \"prefer_ipv6\"\n      }\n    ],\n    \"strategy\": \"ipv4_only\"\n  }\n}",
+        "{\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"udp\",\n        \"server\": \"1.1.1.1\"\n      },\n      {\n        \"type\": \"udp\",\n        \"tag\": \"google\",\n        \"server\": \"8.8.8.8\"\n      }\n    ],\n    \"rules\": [\n      {\n        \"domain\": \"google.com\",\n        \"server\": \"google\",\n        \"client_subnet\": \"1.1.1.1\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    {
+      "version": "1.12.0",
+      "title": "迁移 outbound DNS 规则项到域解析选项",
+      "summary": "旧的 `outbound` DNS 规则已废弃，且可新的域解析选项代替。",
+      "deprecated_examples": [
+        "{\n\"dns\": {\n\"servers\": [\n  {\n    \"address\": \"local\",\n    \"tag\": \"local\"\n  }\n],\n\"rules\": [\n  {\n    \"outbound\": \"any\",\n    \"server\": \"local\"\n  }\n]\n},\n\"outbounds\": [\n{\n  \"type\": \"socks\",\n  \"server\": \"example.org\",\n  \"server_port\": 2080\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"dns\": {\n\"servers\": [\n  {\n    \"type\": \"local\",\n    \"tag\": \"local\"\n  }\n]\n},\n\"outbounds\": [\n{\n  \"type\": \"socks\",\n  \"server\": \"example.org\",\n  \"server_port\": 2080,\n  \"domain_resolver\": {\n    \"server\": \"local\",\n    \"rewrite_ttl\": 60,\n    \"client_subnet\": \"1.1.1.1\"\n  },\n  // 或 \"domain_resolver\": \"local\",\n}\n],\n\n// 或\n\n\"route\": {\n\"default_domain_resolver\": {\n  \"server\": \"local\",\n  \"rewrite_ttl\": 60,\n  \"client_subnet\": \"1.1.1.1\"\n}\n}\n}"
+      ]
+    },
+    {
+      "version": "1.12.0",
+      "title": "迁移出站域名策略选项到域名解析器",
+      "summary": "拨号字段中的 `domain_strategy` 选项已被弃用，可以用新的域名解析器选项替代。 请注意，由于 sing-box 1.12 中引入的一些新 DNS 服务器使用了拨号字段，一些人错误地认为 `domain_strategy` 与旧 DNS 服务器中的功能相同。",
+      "deprecated_examples": [
+        "{\n\"outbounds\": [\n{\n  \"type\": \"socks\",\n  \"server\": \"example.org\",\n  \"server_port\": 2080,\n  \"domain_strategy\": \"prefer_ipv4\",\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"dns\": {\n\"servers\": [\n  {\n    \"type\": \"local\",\n    \"tag\": \"local\"\n  }\n]\n},\n\"outbounds\": [\n{\n  \"type\": \"socks\",\n  \"server\": \"example.org\",\n  \"server_port\": 2080,\n  \"domain_resolver\": {\n    \"server\": \"local\",\n    \"strategy\": \"prefer_ipv4\"\n  }\n}\n]\n}"
+      ]
+    },
+    {
+      "version": "1.11.0",
+      "title": "迁移旧的特殊出站到规则动作",
+      "summary": "旧的特殊出站已被弃用，且可以被规则动作替代。",
+      "deprecated_examples": [
+        "{\n  \"outbounds\": [\n    {\n      \"type\": \"block\",\n      \"tag\": \"block\"\n    }\n  ],\n  \"route\": {\n    \"rules\": [\n      {\n        ...,\n\n        \"outbound\": \"block\"\n      }\n    ]\n  }\n}",
+        "{\n  \"inbound\": [\n    {\n      ...,\n\n      \"sniff\": true\n    }\n  ],\n  \"outbounds\": [\n    {\n      \"tag\": \"dns\",\n      \"type\": \"dns\"\n    }\n  ],\n  \"route\": {\n    \"rules\": [\n      {\n        \"protocol\": \"dns\",\n        \"outbound\": \"dns\"\n      }\n    ]\n  }\n}"
+      ],
+      "migrated_examples": [
+        "{\n  \"route\": {\n    \"rules\": [\n      {\n        ...,\n\n        \"action\": \"reject\"\n      }\n    ]\n  }\n}",
+        "{\n  \"route\": {\n    \"rules\": [\n      {\n        \"action\": \"sniff\"\n      },\n      {\n        \"protocol\": \"dns\",\n        \"action\": \"hijack-dns\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    {
+      "version": "1.11.0",
+      "title": "迁移旧的入站字段到规则动作",
+      "summary": "入站选项已被弃用，且可以被规则动作替代。",
+      "deprecated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"mixed\",\n  \"sniff\": true,\n  \"sniff_timeout\": \"1s\",\n  \"domain_strategy\": \"prefer_ipv4\"\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"mixed\",\n  \"tag\": \"in\"\n}\n],\n\"route\": {\n\"rules\": [\n  {\n    \"inbound\": \"in\",\n    \"action\": \"resolve\",\n    \"strategy\": \"prefer_ipv4\"\n  },\n  {\n    \"inbound\": \"in\",\n    \"action\": \"sniff\",\n    \"timeout\": \"1s\"\n  }\n]\n}\n}"
+      ]
+    },
+    {
+      "version": "1.11.0",
+      "title": "迁移 direct 出站中的目标地址覆盖字段到路由字段",
+      "summary": "direct 出站中的目标地址覆盖字段已废弃，且可以被路由字段替代。",
+      "deprecated_examples": [
+        "{\n\"outbounds\": [\n{\n  \"type\": \"direct\",\n  \"override_address\": \"1.1.1.1\",\n  \"override_port\": 443\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"route\": {\n\"rules\": [\n  {\n    \"action\": \"route-options\", // 或 route\n    \"override_address\": \"1.1.1.1\",\n    \"override_port\": 443\n  }\n]\n}\n}"
+      ]
+    },
+    {
+      "version": "1.11.0",
+      "title": "迁移 WireGuard 出站到端点",
+      "summary": "WireGuard 出站已被弃用，且可以被端点替代。",
+      "deprecated_examples": [
+        "{\n\"outbounds\": [\n{\n  \"type\": \"wireguard\",\n  \"tag\": \"wg-out\",\n\n  \"server\": \"127.0.0.1\",\n  \"server_port\": 10001,\n  \"system_interface\": true,\n  \"gso\": true,\n  \"interface_name\": \"wg0\",\n  \"local_address\": [\n    \"10.0.0.1/32\"\n  ],\n  \"private_key\": \"<private_key>\",\n  \"peer_public_key\": \"<peer_public_key>\",\n  \"pre_shared_key\": \"<pre_shared_key>\",\n  \"reserved\": [0, 0, 0],\n  \"mtu\": 1408\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"endpoints\": [\n{\n  \"type\": \"wireguard\",\n  \"tag\": \"wg-ep\",\n  \"system\": true,\n  \"name\": \"wg0\",\n  \"mtu\": 1408,\n  \"address\": [\n    \"10.0.0.2/32\"\n  ],\n  \"private_key\": \"<private_key>\",\n  \"listen_port\": 10000,\n  \"peers\": [\n    {\n      \"address\": \"127.0.0.1\",\n      \"port\": 10001,\n      \"public_key\": \"<peer_public_key>\",\n      \"pre_shared_key\": \"<pre_shared_key>\",\n      \"allowed_ips\": [\n        \"0.0.0.0/0\"\n      ],\n      \"persistent_keepalive_interval\": 30,\n      \"reserved\": [0, 0, 0]\n    }\n  ]\n}\n]\n}"
+      ]
+    },
+    {
+      "version": "1.10.0",
+      "title": "TUN 地址字段已合并",
+      "summary": "`inet4_address` 和 `inet6_address` 已合并为 `address`， `inet4_route_address` 和 `inet6_route_address` 已合并为 `route_address`， `inet4_route_exclude_address` 和 `inet6_route_exclude_address` 已合并为 `route_exclude_address`。",
+      "deprecated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"tun\",\n  \"inet4_address\": \"172.19.0.1/30\",\n  \"inet6_address\": \"fdfe:dcba:9876::1/126\",\n  \"inet4_route_address\": [\n    \"0.0.0.0/1\",\n    \"128.0.0.0/1\"\n  ],\n  \"inet6_route_address\": [\n    \"::/1\",\n    \"8000::/1\"\n  ],\n  \"inet4_route_exclude_address\": [\n    \"192.168.0.0/16\"\n  ],\n  \"inet6_route_exclude_address\": [\n    \"fc00::/7\"\n  ]\n}\n]\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"inbounds\": [\n{\n  \"type\": \"tun\",\n  \"address\": [\n    \"172.19.0.1/30\",\n    \"fdfe:dcba:9876::1/126\"\n  ],\n  \"route_address\": [\n    \"0.0.0.0/1\",\n    \"128.0.0.0/1\",\n    \"::/1\",\n    \"8000::/1\"\n  ],\n  \"route_exclude_address\": [\n    \"192.168.0.0/16\",\n    \"fc00::/7\"\n  ]\n}\n]\n}"
+      ]
+    },
+    {
+      "version": "1.9.5",
+      "title": "Apple 平台客户端的 Bundle Identifier 更新",
+      "summary": "由于我们旧的苹果开发者账户存在问题，我们只能通过更新 Bundle Identifiers 来重新上架 sing-box 应用， 这意味着数据不会自动继承。 对于 iOS，您需要自行备份旧的数据（如果您仍然可以访问）；",
+      "deprecated_examples": [],
+      "migrated_examples": []
+    },
+    {
+      "version": "1.9.0",
+      "title": "`domain_suffix` 行为更新",
+      "summary": "由于历史原因，sing-box 的 `domain_suffix` 规则匹配字面前缀，而不与其他项目相同。 sing-box 1.9.0 修改了 `domain_suffix` 的行为：如果规则值以 `.` 为前缀则行为不变，否则改为匹配 `(domain|.+\\.domain)`。",
+      "deprecated_examples": [],
+      "migrated_examples": []
+    },
+    {
+      "version": "1.9.0",
+      "title": "对 Windows 上 `process_path` 格式的更新",
+      "summary": "sing-box 的 `process_path` 规则继承自Clash， 原始代码使用本地系统的路径格式（例如 `\\Device\\HarddiskVolume1\\folder\\program.exe`）， 但是当设备有多个硬盘时，该 HarddiskVolume 系列号并不稳定。",
+      "deprecated_examples": [],
+      "migrated_examples": []
+    },
+    {
+      "version": "1.8.0",
+      "title": "将缓存文件从 Clash API 迁移到独立选项",
+      "summary": "",
+      "deprecated_examples": [
+        "{\n\"experimental\": {\n\"clash_api\": {\n  \"cache_file\": \"cache.db\", // 默认值\n  \"cahce_id\": \"my_profile2\",\n  \"store_mode\": true,\n  \"store_selected\": true,\n  \"store_fakeip\": true\n}\n}\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"experimental\"  : {\n\"cache_file\": {\n  \"enabled\": true,\n  \"path\": \"cache.db\", // 默认值\n  \"cache_id\": \"my_profile2\",\n  \"store_fakeip\": true\n}\n}\n}"
+      ]
+    },
+    {
+      "version": "1.8.0",
+      "title": "迁移 GeoIP 到规则集",
+      "summary": "",
+      "deprecated_examples": [
+        "{\n\"route\": {\n\"rules\": [\n  {\n    \"geoip\": \"private\",\n    \"outbound\": \"direct\"\n  },\n  {\n    \"geoip\": \"cn\",\n    \"outbound\": \"direct\"\n  },\n  {\n    \"source_geoip\": \"cn\",\n    \"outbound\": \"block\"\n  }\n],\n\"geoip\": {\n  \"download_detour\": \"proxy\"\n}\n}\n}"
+      ],
+      "migrated_examples": [
+        "{\n\"route\": {\n\"rules\": [\n  {\n    \"ip_is_private\": true,\n    \"outbound\": \"direct\"\n  },\n  {\n    \"rule_set\": \"geoip-cn\",\n    \"outbound\": \"direct\"\n  },\n  {\n    \"rule_set\": \"geoip-us\",\n    \"rule_set_ipcidr_match_source\": true,\n    \"outbound\": \"block\"\n  }\n],\n\"rule_set\": [\n  {\n    \"tag\": \"geoip-cn\",\n    \"type\": \"remote\",\n    \"format\": \"binary\",\n    \"url\": \"https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs\",\n    \"download_detour\": \"proxy\"\n  },\n  {\n    \"tag\": \"geoip-us\",\n    \"type\": \"remote\",\n    \"format\": \"binary\",\n    \"url\": \"https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-us.srs\",\n    \"download_detour\": \"proxy\"\n  }\n]\n},\n\"experimental\": {\n\"cache_file\": {\n  \"enabled\": true // required to save rule-set cache\n}\n}\n}"
+      ]
+    },
+    {
+      "version": "1.8.0",
+      "title": "迁移 Geosite 到规则集",
+      "summary": "",
+      "deprecated_examples": [
+        "{\n\"route\": {\n\"rules\": [\n  {\n    \"geosite\": \"cn\",\n    \"outbound\": \"direct\"\n  }\n],\n\"geosite\": {\n  \"download_detour\": \"proxy\"\n}\n}\n}"
+      ],
+      "migrated_examples": []
+    }
+  ],
+  "red_lines": [
+    {
+      "id": "REDLINE-GITHUBUSERCONTENT-DIRECT",
+      "title": "禁止将 githubusercontent.com 放入直连规则集 (direct-domains)",
+      "severity": "critical",
+      "detail": "实测 release-assets.githubusercontent.com 走家宽直连仅 4.5-6.7 KB/s 且伴随 TLS RST/断流，走代理节点可达 7.2 MB/s（差三个数量级）。必须保留在 proxy-domains 中。"
+    },
+    {
+      "id": "REDLINE-AUTO-REDIRECT-MARK-CONFLICT",
+      "title": "TUN auto_redirect 与 route.default_mark / outbound.routing_mark 互斥",
+      "severity": "critical",
+      "detail": "启用 tun.auto_redirect 时（如 OpenWrt fw4 nftables），不可同时设置 route.default_mark 或出站 routing_mark，否则会导致内核路由标记冲突。"
+    },
+    {
+      "id": "REDLINE-AUTO-REDIRECT-EXCLUDE-CONFLICT",
+      "title": "auto_redirect_disable_mark_mode 与 route_exclude_address_set 互斥",
+      "severity": "critical",
+      "detail": "TUN 入站中 auto_redirect_disable_mark_mode 与 route_exclude_address_set（如 [geoip-cn]）不可同时开启，二者只能选其一。"
+    },
+    {
+      "id": "REDLINE-BOOTSTRAP-RESOLVER",
+      "title": "1.14+ 必须显式指定 route.default_domain_resolver 或 DoH domain_resolver",
+      "severity": "high",
+      "detail": "1.12 起废弃隐式域名解析，DoH 节点或代理出站若未指定指向直连/hosts 的 domain_resolver，会导致启动时 DNS 自举死锁。"
+    }
+  ],
+  "pkbox_field_rationales": [
+    {
+      "field": "log",
+      "value_sample": "{",
+      "rationale": "日志模块：控制日志级别、时间戳等输出行为",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "level",
+      "value_sample": "\"trace\"",
+      "rationale": "日志级别设为 trace，会输出最详细的调试信息（含内部状态、DNS 竞速过程），适合排查问题；日常稳定使用可改为 info 或 warn 以减少日志量",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "timestamp",
+      "value_sample": "true",
+      "rationale": "在每条日志前附加时间戳，便于对照事件发生顺序（尤其在调试 DNS race 和路由匹配时非常有用）",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "dns",
+      "value_sample": "{",
+      "rationale": "DNS 模块：定义 DNS 服务器、DNS 规则以及 DNS 缓存行为",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "servers",
+      "value_sample": "[",
+      "rationale": "DNS 服务器列表，每个元素声明一个可用于解析的 DNS 后端",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "type",
+      "value_sample": "\"hosts\"",
+      "rationale": "服务器类型为 hosts，不从网络查询，而是直接返回 predefined 中预设的 IP",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "tag",
+      "value_sample": "\"hosts_fix\"",
+      "rationale": "该服务器的标签为 hosts_fix，后续 server 或 domain_resolver 字段通过这个标签引用它",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "predefined",
+      "value_sample": "{",
+      "rationale": "静态映射表：键是域名，值是直接返回的 IP 列表",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "cloudflare-dns.com",
+      "value_sample": "[",
+      "rationale": "为 cloudflare-dns.com 预设 IP，避免解析这个 DoH 服务器域名时产生循环依赖",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "dns.google",
+      "value_sample": "[",
+      "rationale": "为 dns.google 预设 IP，理由同上：DoH 服务器域名不能再用 DoH 去解析自身",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "raw.githubusercontent.com",
+      "value_sample": "[",
+      "rationale": "为 GitHub raw 域名预设 IP，确保规则集下载不被 DNS 解析阻塞或污染",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "type",
+      "value_sample": "\"local\"",
+      "rationale": "类型为 local，调用操作系统提供的 DNS 解析（在 Android 上通常是系统 DNS 或 netd 解析器）",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "tag",
+      "value_sample": "\"pkpk-dns\"",
+      "rationale": "标签为 pkpk-dns，后续国内域名、华为域名、微软/苹果中国域名等规则会指向这个服务器，实现“国内域名用本地 DNS 解析”的分流",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "type",
+      "value_sample": "\"https\"",
+      "rationale": "类型为 https，表示使用 DNS over HTTPS（DoH）协议进行查询[reference:3]",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "tag",
+      "value_sample": "\"cf-dns\"",
+      "rationale": "标签为 cf-dns，供 DNS 规则和 final 字段引用",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "detour",
+      "value_sample": "\"📦 sing-box\"",
+      "rationale": "指定 DNS 查询流量从出站选择器“📦 sing-box”走代理，防止 DNS 泄漏并规避网络干扰；DNS 模块的 detour 用于指定该 DoH 请求从哪个出站发出",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "domain_resolver",
+      "value_sample": "\"hosts_fix\"",
+      "rationale": "指定解析 cloudflare-dns.com 这个域名时使用的解析器为 hosts_fix；因为 DoH 服务器本身也是域名，必须先解析它，这里用 hosts 静态解析避免自举循环[reference:5]",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "server",
+      "value_sample": "\"cloudflare-dns.com\"",
+      "rationale": "实际的 DoH 端点域名；sing-box 会自动构造 https://cloudflare-dns.com/dns-query 形式的请求",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "tag",
+      "value_sample": "\"google-dns\"",
+      "rationale": "标签为 google-dns，供 Google 相关域名的 DNS 规则引用",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "detour",
+      "value_sample": "\"📦 sing-box\"",
+      "rationale": "查询流量同样走“📦 sing-box”代理选择器，避免直连暴露或受干扰",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "domain_resolver",
+      "value_sample": "\"hosts_fix\"",
+      "rationale": "用 hosts_fix 静态解析 dns.google 域名，避免 DoH 自举时的额外解析和潜在环路",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "server",
+      "value_sample": "\"dns.google\"",
+      "rationale": "Google DoH 的端点域名",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "rules",
+      "value_sample": "[",
+      "rationale": "DNS 规则列表：按顺序匹配，决定一个 DNS 查询交给哪个服务器处理，或执行特殊动作",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "rule_set",
+      "value_sample": "[",
+      "rationale": "匹配条件为“命中以下任一规则集”",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    },
+    {
+      "field": "server",
+      "value_sample": "\"google-dns\"",
+      "rationale": "动作：将匹配的 DNS 查询路由到 google-dns（DoH over 代理）进行解析",
+      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+    }
+  ]
+}

@@ -10,4 +10,10 @@ __pycache__/
 
 # 真实 provider 订阅（密钥不进仓库）
 /providers.yaml
-/dist/
+
+# build.py 生成的设备配置为本地产物，不入库
+/dist/*
+# 例外：每日同步产出的 LLM 知识库与迁移审计需要公开可读
+!/dist/migration-rules.json
+!/dist/sing-box-llm-kb.md
+!/dist/template-migration-audit.json

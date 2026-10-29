@@ -115,10 +115,8 @@ def build_dns(intents):
     }
 
 
-def build_route(intents, rule_sets, extra_rules=None):
+def build_route(intents, rule_sets):
     rules = [{"action": "sniff"}, {"protocol": "dns", "action": "hijack-dns"}]
-    # package_rules（phone）优先级高于意图规则
-    rules.extend(extra_rules or [])
     for it in intents:
         rules.append({"rule_set": it["rule_set"], "outbound": it["route"]})
     rs_decl = []
@@ -187,7 +185,7 @@ def build_tun_inbound(dev):
 
 
 def build_experimental(dev):
-    """experimental 段由 device yaml 决定（router/phone 路径、监听地址不同）。"""
+    """experimental 段由 device yaml 决定。"""
     exp = dev.get("experimental", {})
     out = {}
     if "cache_file" in exp:
@@ -195,17 +193,6 @@ def build_experimental(dev):
     if "clash_api" in exp:
         out["clash_api"] = exp["clash_api"]
     return out
-
-
-def build_package_rules(dev):
-    """phone 专属：package_name 应用分流表，优先级高于意图规则。"""
-    rules = []
-    for pr in dev.get("package_rules", []) or []:
-        rules.append({
-            "package_name": pr["package_name"],
-            "outbound": pr["outbound"],
-        })
-    return rules
 
 
 def fake_providers():
@@ -265,7 +252,7 @@ def main() -> int:
     rule_sets = intents_doc.get("rule_sets", [])
 
     dns = build_dns(intents)
-    route = build_route(intents, rule_sets, build_package_rules(dev))
+    route = build_route(intents, rule_sets)
 
     cfg = {
         "log": {"level": dev.get("log", {}).get("level", "info"), "timestamp": True},

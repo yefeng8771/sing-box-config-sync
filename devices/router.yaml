@@ -1,5 +1,5 @@
 # Router overlay（待确认，v1 范围）
-# 与 base 合并后生成 router.json；phone.yaml v1 留空
+# 与 base 合并后生成 router.json
 
 version: 1
 device: router

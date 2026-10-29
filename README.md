@@ -104,4 +104,4 @@ python build/migrate.py --batch-audit --out dist/template-migration-audit.json  
 
 - pk-box 自动发现 `beta` 与顶层版本目录（如 `1.15.0-alpha.xxx`、`1.16.0-alpha.1`），保留上游原文。`template-status.json` 列出 JSON/JSONC 语法检查结果（允许注释和尾随逗号）；即便语法通过，也只是模板，不能保证 sing-box 能使用或适合你的设备。`normalized/pk-box` 如有旧文件，是历史残留，不再更新。
 - 每次同步的 Actions 摘要记录 UTC 时间、每个来源的提交或版本、文件增删改数量与失败原因；失败不推送本次结果。
-- Build Kernel 在同一次源码构建的 CI 主机版上，分别用模拟订阅检查路由器和手机配置；它不验证真实订阅或 Android、路由器实机运行。
+- Build Kernel 在同一次源码构建的 CI 主机版上，用模拟订阅检查路由器配置；它不验证真实订阅或路由器实机运行。

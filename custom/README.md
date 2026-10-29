@@ -50,9 +50,9 @@
 {"rule_set": ["🛰️自定义代理"], "outbound": "🐟全球代理"}
 ```
 
-## 跨平台共用
+## 适用范围
 
-域名规则集与 inbound 类型无关，路由器（eBPF 模式）与 Android（TUN 模式，boxproxy/box）共用同一 URL，改域名改 GitHub 一处即全设备同步。
+域名规则集与 inbound 类型无关，路由器（eBPF 模式）与后续其他设备共用同一 URL，改域名改 GitHub 一处即全设备同步。
 
 > 注意：进程/协议维度的规则（如 `process_name`/`protocol`）与平台强相关，不宜放进此域名规则集，应各端在自身配置中单独定义。
 

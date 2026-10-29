@@ -14,7 +14,7 @@ class BuildTests(unittest.TestCase):
             # Deliberately invalid YAML: reading this file would fail.
             provider_file = tmp / 'providers.yaml'
             provider_file.write_text('should-not-be-read: [')
-            for device in ('router', 'phone'):
+            for device in ('router',):
                 output = tmp / (device + '.json')
                 result = subprocess.run([sys.executable, str(ROOT / 'build/build.py'),
                     '--device', device, '--providers', str(provider_file),

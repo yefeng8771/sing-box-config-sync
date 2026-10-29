@@ -8,14 +8,13 @@ Reads:
   - sources/pk-box/ annotated templates
   - .sync-meta.json & kernel.lock
 
-Outputs:
+Outputs (deterministic — no wall-clock timestamp, so unchanged inputs produce identical bytes):
   - dist/migration-rules.json  (machine-readable AST migration rules + schema summary)
   - dist/sing-box-llm-kb.md    (high-density LLM knowledge base & prompt context)
 """
 import json
 import re
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -371,40 +370,91 @@ def build_red_lines() -> list[dict]:
     ]
 
 
+TOP_LEVEL_FIELD_NOTES: dict[str, tuple[str, str]] = {
+    "$schema": (
+        "JSON Schema 声明",
+        "推荐指向 `https://raw.githubusercontent.com/reF1nd/sing-box/reF1nd-testing-next/docs/schema.json`",
+    ),
+    "log": ("日志配置", "生产环境建议 `level: info`、`timestamp: true`"),
+    "dns": (
+        "DNS 服务器与分流规则",
+        "**已移除** `independent_cache`；旧版 `address` 字符串格式已彻底废弃，必须用 `type` + `server`；IP 匹配规则需走 `evaluate` + `match_response`",
+    ),
+    "http_clients": (
+        "共享 HTTP 客户端 **(1.14 新增)**",
+        "替代废弃的 `download_detour`；用于远程 `rule_set`、`providers` 与 `services.dashboard` 下载",
+    ),
+    "certificate": (
+        "顶层证书对象 **(1.12 新增)**",
+        "替代入站 `tls.certificate` 内联写法；与 `certificate_providers` 二选一，动态签发走后者",
+    ),
+    "certificate_providers": (
+        "共享证书提供者 **(1.14 新增)**",
+        "替代废弃的 `tls.acme` 内联配置",
+    ),
+    "endpoints": (
+        "端点模块 **(1.11 新增)**",
+        "WireGuard、Tailscale、MASQUE、OpenVPN、OpenConnect 等均作为 Endpoint 配置",
+    ),
+    "inbounds": (
+        "入站连接",
+        "`tun` 入站的 `stack` 自 1.15 **废弃**、1.17 移除（默认启用自有高性能 `sing-tun` 栈）；`sniff` 与 `domain_strategy` 已移入 `route.rules`",
+    ),
+    "outbounds": (
+        "出站与策略组",
+        "**已移除** `type: block` 与 `type: dns` 特殊出站（改用路由规则动作 `reject` / `hijack-dns`）",
+    ),
+    "providers": (
+        "外部节点订阅提供者",
+        "远程订阅使用 `http_client` 指定下载客户端，禁用 `download_detour`",
+    ),
+    "route": (
+        "路由规则与规则集",
+        "必须显式配置 `default_domain_resolver`（防自举死锁）与 `default_http_client`；`rule_set.tag` 支持数组批量展开 `{tag}`",
+    ),
+    "experimental": ("实验性功能", "`cache_file.store_rdrc` 已废弃，统一改为 `store_dns: true`"),
+    "services": (
+        "面板与附加服务",
+        "支持 `api`（含内置 Zashboard 下载）、`derp`、`ccm`、`ocm`、`ssm-api`、`usbip` 等",
+    ),
+    "network_namespaces": (
+        "网络命名空间定义",
+        "供出站 `netns` 等字段按 tag 引用，需要内核与权限支持",
+    ),
+    "ntp": (
+        "内建 NTP 客户端",
+        "为 TLS / Shadowsocks / VMess 等协议提供时间，适用于无法自行同步时间的环境",
+    ),
+}
+
+
 def generate_markdown_kb(data: dict) -> str:
     meta = data["metadata"]
     schema = data["schema_summary"]
     lines = [
         "# sing-box 跨版本演进权威知识库 (1.8 → 1.15 reF1nd-testing-next)",
         "",
-        f"> 自动生成时间：`{meta['generated_at']}` | 文档基准：`reF1nd-testing-next` (`{meta['ref1nd_docs_commit'][:12]}`) | 锁定内核：`{meta['kernel_commit'][:12]}`",
+        f"> 文档基准：`reF1nd-testing-next` (`{meta['ref1nd_docs_commit'][:12]}`) | 锁定内核：`{meta['kernel_commit'][:12]}` | 上游规则：`Repcz/Tool` (`{meta['repcz_tool_commit'][:12]}`) | 模板：`pk-box` (`{meta['pk_box_commit'][:12]}`)",
         "",
-        "本知识库由 `build/extract_kb.py` 从上游官方文档 (`deprecated.zh.md`、`migration.zh.md`、`schema.json`)、实战带注释模板 (`pk-box`、`repcz-tool`、`gist-chizi`) 与本仓工程契约自动蒸馏生成，供 LLM / AI Skill / 自动化迁移器直接作为上下文使用。",
+        "本知识库由 `build/extract_kb.py` 从上游官方文档 (`deprecated.zh.md`、`migration.zh.md`、`schema.json`) 与实战带注释模板 (`sources/pk-box`) 自动蒸馏生成，版本锚点取自 `.sync-meta.json` 与 `kernel.lock`，供 LLM / AI Skill / 自动化迁移器直接作为上下文使用。产物为确定性输出（不含生成时间戳），只在输入变化时更新。",
         "",
         "## 1. 顶层 Schema 结构（1.15 唯一合法根字段）",
         "",
-        "根据最新同步的 `schema.json`（共包含 " + str(schema.get("definitions_count", 0)) + " 个类型定义），合法的顶层字段仅限以下列表：",
+        "根据最新同步的 `schema.json`（共包含 " + str(schema.get("definitions_count", 0)) + " 个类型定义），合法的顶层字段为以下 " + str(len(schema.get("top_level_properties", []))) + " 项（表格由 `schema.json` 的 `properties` 自动生成，不手工维护）：",
         "",
         "| 顶层字段 | 用途说明 | 1.14 / 1.15 关键演进注意事项 |",
         "| :--- | :--- | :--- |",
-        "| `$schema` | JSON Schema 声明 | 推荐指向 `https://raw.githubusercontent.com/reF1nd/sing-box/reF1nd-testing-next/docs/schema.json` |",
-        "| `log` | 日志配置 | 生产环境建议 `level: info`、`timestamp: true` |",
-        "| `dns` | DNS 服务器与分流规则 | **已移除** `independent_cache`；旧版 `address` 字符串格式已彻底废弃，必须用 `type` + `server`；IP 匹配规则需走 `evaluate` + `match_response` |",
-        "| `http_clients` | 共享 HTTP 客户端 **(1.14 新增)** | 替代废弃的 `download_detour`；用于远程 `rule_set`、`providers` 与 `services.dashboard` 下载 |",
-        "| `certificate_providers` | 共享证书提供者 **(1.14 新增)** | 替代废弃的 `tls.acme` 内联配置 |",
-        "| `endpoints` | 端点模块 **(1.11 新增)** | WireGuard、Tailscale、MASQUE、OpenVPN、OpenConnect 等均作为 Endpoint 配置 |",
-        "| `inbounds` | 入站连接 | `tun` 入站自 1.15 起**移除 `stack` 字段**（默认启用自有高性能 `sing-tun` 栈）；`sniff` 与 `domain_strategy` 已移入 `route.rules` |",
-        "| `outbounds` | 出站与策略组 | **已移除** `type: block` 与 `type: dns` 特殊出站（改用路由规则动作 `reject` / `hijack-dns`） |",
-        "| `providers` | 外部节点订阅提供者 | 远程订阅使用 `http_client` 指定下载客户端，禁用 `download_detour` |",
-        "| `route` | 路由规则与规则集 | 必须显式配置 `default_domain_resolver`（防自举死锁）与 `default_http_client`；`rule_set.tag` 支持数组批量展开 `{tag}` |",
-        "| `experimental` | 实验性功能 | `cache_file.store_rdrc` 已废弃，统一改为 `store_dns: true` |",
-        "| `services` | 面板与附加服务 | 支持 `api`（含内置 Zashboard 下载）、`derp`、`ccm`、`ocm`、`ssm-api`、`usbip` 等 |",
+    ]
+    for field in schema.get("top_level_properties", []):
+        usage, notice = TOP_LEVEL_FIELD_NOTES.get(field, ("（见 `schema.json` 对应定义）", "—"))
+        lines.append(f"| `{field}` | {usage} | {notice} |")
+    lines.extend([
         "",
         "## 2. 确定性 AST 迁移规则矩阵（1.8 → 1.15）",
         "",
         "| 规则 ID | 废弃版本 | 移除版本 | 废弃写法 / 路径 | 1.15 标准写法（自动转换动作） |",
         "| :--- | :--- | :--- | :--- | :--- |",
-    ]
+    ])
     for r in data["ast_rules"]:
         lines.append(
             f"| `{r['id']}` | {r['version_deprecated']} | {r['version_removed']} | `{r['path']}` | {r['title']} |"
@@ -536,7 +586,7 @@ def generate_markdown_kb(data: dict) -> str:
     return "\n".join(lines)
 
 
-def main() -> int:
+def main(out_dir: Path | None = None) -> int:
     dep_path = ROOT / "normalized" / "ref1nd-docs" / "deprecated.zh.md"
     mig_path = ROOT / "normalized" / "ref1nd-docs" / "migration.zh.md"
     schema_path = ROOT / "normalized" / "ref1nd-docs" / "schema.json"
@@ -553,7 +603,6 @@ def main() -> int:
 
     data = {
         "metadata": {
-            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "ref1nd_docs_commit": sync_meta.get("ref1nd-docs", {}).get("commit", "unknown"),
             "repcz_tool_commit": sync_meta.get("repcz-tool", {}).get("commit", "unknown"),
             "pk_box_commit": sync_meta.get("pk-box", {}).get("commit", "unknown"),
@@ -567,19 +616,25 @@ def main() -> int:
         "pkbox_field_rationales": pk_notes,
     }
 
-    dist_dir = ROOT / "dist"
+    dist_dir = out_dir if out_dir is not None else ROOT / "dist"
     dist_dir.mkdir(parents=True, exist_ok=True)
 
     rules_out = dist_dir / "migration-rules.json"
     rules_out.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     kb_out = dist_dir / "sing-box-llm-kb.md"
-    kb_out.write_text(generate_markdown_kb(data), encoding="utf-8")
+    kb_out.write_text(generate_markdown_kb(data) + "\n", encoding="utf-8")
+
+    def shown(p: Path) -> str:
+        try:
+            return str(p.relative_to(ROOT))
+        except ValueError:
+            return str(p)
 
     print(
         f"Extracted {len(data['ast_rules'])} AST rules, "
         f"{len(deprecated_items)} deprecated items, "
-        f"{len(migration_sections)} migration sections -> {rules_out.relative_to(ROOT)} & {kb_out.relative_to(ROOT)}"
+        f"{len(migration_sections)} migration sections -> {shown(rules_out)} & {shown(kb_out)}"
     )
     return 0
 

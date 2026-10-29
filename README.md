@@ -51,9 +51,9 @@ sources/
 | 路径 | 作用 | 产出 |
 | --- | --- | --- |
 | `template_status.py` | 分类 pk-box 模板的 JSON/JSONC 语法状态 | `template-status.json` |
-| `build/build.py` | 由 `intents.yaml` 生成设备配置 | `dist/<device>.json`（本地产物，不入库） |
+| `build/build.py` | 由 `intents.yaml` + `devices/<device>.yaml` 生成设备配置（真实订阅另需 `providers.yaml`） | `dist/<device>.json`（本地产物，不入库） |
 | `build/extract_kb.py` | 从上游 `deprecated.zh.md` / `migration.zh.md` / `schema.json` 与 pk-box 模板提炼跨版本知识库 | `dist/migration-rules.json`、`dist/sing-box-llm-kb.md` |
-| `build/migrate.py` | 1.8 → 1.15 确定性 AST 迁移编译器（12 趟迁移 + schema 校验 + 红线检查） | `dist/template-migration-audit.json` |
+| `build/migrate.py` | 1.8 → 1.15 确定性 AST 迁移编译器（14 条迁移规则 + 顶层键校验 + 红线检查） | `dist/template-migration-audit.json` |
 
 `dist/` 下只有上面三个知识库/审计产物入库（见 `.gitignore` 例外），设备配置等本地产物仍不入库。`dist/sing-box-llm-kb.md` 可直接当作 LLM 的 sing-box 1.15 上下文包使用。
 

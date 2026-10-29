@@ -26,7 +26,7 @@ jobs:
           python-version: '3.12'
       - name: Install test dependency
         run: python -m pip install pyyaml
-      - name: Test sync and normalization
+      - name: Test sync, normalization, and AST migration compiler
         run: python -m unittest discover -s tests -v
       - name: Sync sources
         env:
@@ -47,16 +47,20 @@ jobs:
           fi
       - name: Classify raw pk-box templates
         run: python template_status.py
+      - name: Extract self-evolving LLM Knowledge Base & AST Migration Rules
+        run: python build/extract_kb.py
+      - name: Run 1.15 AST Migration Audit across upstream templates
+        run: python build/migrate.py --batch-audit --out dist/template-migration-audit.json
       - name: Commit and push to main
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- sources normalized .sync-meta.json template-status.json
+          git add -- sources normalized .sync-meta.json template-status.json dist/migration-rules.json dist/sing-box-llm-kb.md dist/template-migration-audit.json
           if git diff --cached --quiet; then
             echo 'No changes to sync.'
             exit 0
           fi
-          git commit -m "chore(sync): update upstream sources $(date -u +'%Y-%m-%d')"
+          git commit -m "chore(sync): update upstream sources & LLM migration KB $(date -u +'%Y-%m-%d')"
           # Fast-forward only: if main changed since checkout, fail without overwriting.
           git push origin HEAD:refs/heads/main

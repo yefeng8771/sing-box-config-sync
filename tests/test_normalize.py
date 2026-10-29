@@ -21,11 +21,11 @@ class NormalizationTests(unittest.TestCase):
     def test_success_preserves_raw_templates_and_legacy(self):
         self.put('repcz-tool/a.jsonc', '{"url":"https://x/y", "literal":",}", /*hi*/ "n":null,}')
         self.put('pk-box/template.json', '{"server_port":端口}')
-        self.put('boxproxy-box/old.json', '{')
-        (self.dst / 'boxproxy-box').mkdir(parents=True); (self.dst / 'boxproxy-box/old.json').write_text('legacy')
+        self.put('legacy-source/old.json', '{')
+        (self.dst / 'legacy-source').mkdir(parents=True); (self.dst / 'legacy-source/old.json').write_text('legacy')
         self.assertEqual(normalize.main(), 0)
         self.assertEqual(json.loads((self.dst/'repcz-tool/a.json').read_text()), {'url':'https://x/y','literal':',}'})
-        self.assertEqual((self.dst/'boxproxy-box/old.json').read_text(), 'legacy')
+        self.assertEqual((self.dst/'legacy-source/old.json').read_text(), 'legacy')
         self.assertFalse((self.dst/'pk-box/template.json').exists())
         self.assertEqual((self.src/'pk-box/template.json').read_text(), '{"server_port":端口}')
     def test_invalid_or_collision_leaves_previous_unchanged(self):

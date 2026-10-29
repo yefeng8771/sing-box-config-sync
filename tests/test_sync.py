@@ -70,10 +70,9 @@ class SyncTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError): sync.sync_github(src, '')
                 self.assertEqual(before, sync.file_snapshot(src))
 
-    def test_config_includes_latest_pk_and_excludes_boxproxy(self):
+    def test_config_includes_latest_pk(self):
         config = json.loads((Path(__file__).resolve().parents[1] / 'sources.json').read_text())
         sources = {entry['name']: entry for entry in config['sources']}
-        self.assertNotIn('boxproxy-box', sources)
         self.assertTrue(sources['pk-box']['discover_version_dirs'])
         self.assertEqual(sync.discover_version_dirs(['beta','1.15.0-alpha.xxx','1.16.0-alpha.1','docs','1.16x']), ['1.15.0-alpha.xxx','1.16.0-alpha.1','beta'])
 

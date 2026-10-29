@@ -25,8 +25,7 @@ sources/
 │   └── v1.14.x/、v1.15.x/ 配置模板
 ├── pk-box/          ← beta、1.14 与 1.15 alpha 的上游原始模板
 ├── gist-chizi/      ← gist 35f59df7... 的原始配置
-├── ref1nd-docs/     ← reF1nd-testing-next 的文档
-└── boxproxy-box/    ← 旧存档，已停止同步，保留原内容
+└── ref1nd-docs/     ← reF1nd-testing-next 的文档
 
 ```
 
@@ -40,7 +39,7 @@ sources/
    - 各源全部成功后才进入后续步骤；失败时不会提交或推送。
 3. **`.github/workflows/sync.yml`** —— GitHub Actions,每天 00:00 UTC(08:00 北京)定时触发,也可在 Actions 页手动触发(`workflow_dispatch`)。运行测试、拉取和规范化均成功后才以 `github-actions[bot]` 身份直接提交到 main；无变更则跳过。main 若在运行期间发生变更，非快进推送会失败，等待下一次运行，不强制覆盖。
 
-4. **`normalize.py`** —— 规范化支持的来源到 `normalized/`。`pk-box` 模板原样保存在 `sources/pk-box/`，不生成规范化副本：部分文件含占位符或不是有效 JSON，不能当成可直接运行的配置。其他来源出现 JSON 解析或输出冲突时任务失败，不提交部分结果；原有规范化文件保持不变。旧 `boxproxy-box` 文件保留但不再更新，sing-box 核心构建不受此项移除影响。
+4. **`normalize.py`** —— 规范化支持的来源到 `normalized/`。`pk-box` 模板原样保存在 `sources/pk-box/`，不生成规范化副本：部分文件含占位符或不是有效 JSON，不能当成可直接运行的配置。其他来源出现 JSON 解析或输出冲突时任务失败，不提交部分结果；原有规范化文件保持不变。
 
 5. **`build/extract_kb.py` / `build/migrate.py`** —— 同步与规范化之后运行：先把上游文档与 pk-box 模板提炼成 LLM 知识库和机器可读迁移规则，再对全部上游模板跑一遍 1.15 迁移审计，三个产物（`dist/migration-rules.json`、`dist/sing-box-llm-kb.md`、`dist/template-migration-audit.json`）随同一次同步提交入库。
 

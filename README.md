@@ -42,6 +42,21 @@ sources/
 
 4. **`normalize.py`** —— 规范化支持的来源到 `normalized/`。`pk-box` 模板原样保存在 `sources/pk-box/`，不生成规范化副本：部分文件含占位符或不是有效 JSON，不能当成可直接运行的配置。其他来源出现 JSON 解析或输出冲突时任务失败，不提交部分结果；原有规范化文件保持不变。旧 `boxproxy-box` 文件保留但不再更新，sing-box 核心构建不受此项移除影响。
 
+5. **`build/extract_kb.py` / `build/migrate.py`** —— 同步与规范化之后运行：先把上游文档与 pk-box 模板提炼成 LLM 知识库和机器可读迁移规则，再对全部上游模板跑一遍 1.15 迁移审计，三个产物（`dist/migration-rules.json`、`dist/sing-box-llm-kb.md`、`dist/template-migration-audit.json`）随同一次同步提交入库。
+
+## 构建产物与工具
+
+除同步脚本外，仓库还带一套「知识库 + 迁移编译器」，每日同步成功后与上游数据在同一次提交里更新：
+
+| 路径 | 作用 | 产出 |
+| --- | --- | --- |
+| `template_status.py` | 分类 pk-box 模板的 JSON/JSONC 语法状态 | `template-status.json` |
+| `build/build.py` | 由 `intents.yaml` 生成设备配置 | `dist/<device>.json`（本地产物，不入库） |
+| `build/extract_kb.py` | 从上游 `deprecated.zh.md` / `migration.zh.md` / `schema.json` 与 pk-box 模板提炼跨版本知识库 | `dist/migration-rules.json`、`dist/sing-box-llm-kb.md` |
+| `build/migrate.py` | 1.8 → 1.15 确定性 AST 迁移编译器（12 趟迁移 + schema 校验 + 红线检查） | `dist/template-migration-audit.json` |
+
+`dist/` 下只有上面三个知识库/审计产物入库（见 `.gitignore` 例外），设备配置等本地产物仍不入库。`dist/sing-box-llm-kb.md` 可直接当作 LLM 的 sing-box 1.15 上下文包使用。
+
 ## 添加 / 修改源
 
 编辑 `sources.json` 增加一条即可,无需改代码:
@@ -68,6 +83,14 @@ sources/
 ```bash
 python sync.py                          # 匿名访问(受 API 限速,公开内容均可读)
 GITHUB_TOKEN=xxx python sync.py         # 带 token,更稳(gist 失败会自动回退匿名)
+```
+
+知识库与迁移编译器：
+
+```bash
+python build/extract_kb.py                                              # 生成 LLM 知识库与迁移规则
+python build/migrate.py input.jsonc -o output.json                      # 单个配置 1.8→1.15 迁移
+python build/migrate.py --batch-audit --out dist/template-migration-audit.json   # 批量审计全部模板
 ```
 
 ## 同步状态

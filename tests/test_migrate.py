@@ -174,10 +174,85 @@ class MigrateCompilerTests(unittest.TestCase):
         self.assertEqual(migrate.check_custom_direct_domains_redline(), [])
 
     def test_extract_kb_generates_rules_and_markdown(self):
-        rc = extract_kb.main()
-        self.assertEqual(rc, 0)
-        self.assertTrue((ROOT / "dist" / "migration-rules.json").exists())
-        self.assertTrue((ROOT / "dist" / "sing-box-llm-kb.md").exists())
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "dist"
+            self.assertEqual(extract_kb.main(out_dir=out_dir), 0)
+
+            rules = json.loads((out_dir / "migration-rules.json").read_text(encoding="utf-8"))
+            kb = (out_dir / "sing-box-llm-kb.md").read_text(encoding="utf-8")
+
+            self.assertGreater(len(rules["ast_rules"]), 0)
+            self.assertGreater(len(rules["deprecated_items"]), 0)
+            # 产物必须是确定性输出，不含生成时间戳（否则每日同步必产生空提交）
+            self.assertNotIn("generated_at", rules["metadata"])
+            # 顶层字段表必须覆盖 schema 的全部顶层字段
+            for field in rules["schema_summary"]["top_level_properties"]:
+                self.assertIn(f"| `{field}` |", kb)
+
+            # 同一输入再跑一次必须字节级一致
+            out_dir2 = Path(tmp) / "dist2"
+            self.assertEqual(extract_kb.main(out_dir=out_dir2), 0)
+            self.assertEqual(
+                (out_dir / "migration-rules.json").read_bytes(),
+                (out_dir2 / "migration-rules.json").read_bytes(),
+            )
+            self.assertEqual(
+                (out_dir / "sing-box-llm-kb.md").read_bytes(),
+                (out_dir2 / "sing-box-llm-kb.md").read_bytes(),
+            )
+
+    def test_sniff_override_migrates_to_separate_action(self):
+        """sniff_override_destination 必须迁为独立动作，不能作为 sniff 的字段。"""
+        cfg = {
+            "inbounds": [
+                {
+                    "type": "tun",
+                    "tag": "tun-in",
+                    "sniff": True,
+                    "sniff_timeout": "100ms",
+                    "sniff_override_destination": True,
+                }
+            ],
+            "outbounds": [{"type": "direct", "tag": "direct"}],
+        }
+        out, _, _ = migrate.migrate_config(cfg)
+        actions = [r.get("action") for r in out["route"]["rules"]]
+        self.assertIn("sniff", actions)
+        self.assertIn("sniff-override-destination", actions)
+        for rule in out["route"]["rules"]:
+            self.assertNotIn("override_destination", rule)
+
+    def test_evaluate_server_points_to_existing_dns_tag(self):
+        """缺 dns.final 时，evaluate 必须指向真实存在的 server tag。"""
+        cfg = {
+            "dns": {
+                "servers": [{"tag": "dns-local", "address": "local"}],
+                "rules": [{"rule_set": ["cn"], "ip_is_private": True}],
+            },
+            "outbounds": [{"type": "direct", "tag": "direct"}],
+        }
+        out, _, _ = migrate.migrate_config(cfg)
+        tags = {s["tag"] for s in out["dns"]["servers"] if isinstance(s, dict) and s.get("tag")}
+        evaluate = [r for r in out["dns"]["rules"] if r.get("action") == "evaluate"]
+        self.assertEqual(len(evaluate), 1)
+        self.assertIn(evaluate[0]["server"], tags)
+
+    def test_no_dns_server_produces_no_dangling_reference(self):
+        """没有任何带 tag 的 DNS 服务器时，不得产出悬空引用。"""
+        cfg = {
+            "dns": {"rules": [{"ip_is_private": True}]},
+            "outbounds": [{"type": "direct", "tag": "direct", "domain_strategy": "prefer_ipv4"}],
+        }
+        out, _, issues = migrate.migrate_config(cfg)
+        codes = {i["code"] for i in issues}
+
+        self.assertNotIn("domain_strategy", out["outbounds"][0])
+        self.assertNotIn("domain_resolver", out["outbounds"][0])
+        self.assertIn("MIG-112-NO-DNS-SERVER", codes)
+
+        dns_rule = out["dns"]["rules"][0]
+        self.assertNotIn("match_response", dns_rule)
+        self.assertIn("MIG-114-NO-EVALUATE-SERVER", codes)
 
 
 if __name__ == "__main__":

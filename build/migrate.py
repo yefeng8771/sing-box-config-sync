@@ -3,8 +3,8 @@
 
 Features:
   - Tolerant JSON/JSONC parser (strips // and /* */ comments and trailing commas)
-  - 12 deterministic AST migration passes (1.8 -> 1.15)
-  - Schema validation against normalized/ref1nd-docs/schema.json
+  - 14 deterministic AST migration rules (1.8 -> 1.15), catalogued in dist/migration-rules.json
+  - Top-level key validation against normalized/ref1nd-docs/schema.json (not a full schema validator)
   - Logical conflict & red-line checks (auto_redirect + default_mark, githubusercontent.com in direct-domains, etc.)
   - Batch upstream template auditor (--batch-audit)
 
@@ -71,6 +71,36 @@ def parse_legacy_dns_address(addr: str) -> dict:
         if port_s.isdigit():
             return {"type": "udp", "server": host, "server_port": int(port_s)}
     return {"type": "udp", "server": addr}
+
+
+def dns_server_tags(cfg: dict) -> list[str]:
+    """Collect declared dns.servers tags (legacy or 1.12+ shaped entries)."""
+    tags = []
+    dns = cfg.get("dns")
+    if isinstance(dns, dict) and isinstance(dns.get("servers"), list):
+        for srv in dns["servers"]:
+            if isinstance(srv, dict) and isinstance(srv.get("tag"), str) and srv["tag"]:
+                tags.append(srv["tag"])
+    return tags
+
+
+def pick_dns_server_tag(cfg: dict) -> str | None:
+    """Pick a tag that actually exists in dns.servers for domain_resolver / evaluate.
+
+    Prefers dns.final, then a server tagged "remote" (common historical default),
+    then the first declared server. Returns None when no server is tagged, so
+    callers can skip the migration instead of emitting a dangling tag reference.
+    """
+    tags = dns_server_tags(cfg)
+    if not tags:
+        return None
+    dns = cfg.get("dns")
+    final = dns.get("final") if isinstance(dns, dict) else None
+    if isinstance(final, str) and final in tags:
+        return final
+    if "remote" in tags:
+        return "remote"
+    return tags[0]
 
 
 def migrate_config(cfg_in: dict) -> tuple[dict, list[dict], list[dict]]:
@@ -180,14 +210,18 @@ def migrate_config(cfg_in: dict) -> tuple[dict, list[dict], list[dict]]:
                     s_rule = {"inbound": ib["tag"], "action": "sniff"}
                     if sniff_timeout:
                         s_rule["timeout"] = sniff_timeout
-                    if sniff_override is not None:
-                        s_rule["override_destination"] = sniff_override
                     hoisted_route_rules.append(s_rule)
+                    if sniff_override:
+                        # 1.15 中目标地址覆盖是独立动作，不能作为 sniff 动作的字段。
+                        hoisted_route_rules.append({
+                            "inbound": ib["tag"],
+                            "action": "sniff-override-destination",
+                        })
                 record(
                     "MIG-111-INBOUND-SNIFF",
                     ib_path,
                     "入站内联 sniff / domain_strategy",
-                    "提取为 route.rules 顶部的 sniff / resolve 动作规则",
+                    "提取为 route.rules 顶部的 sniff / sniff-override-destination / resolve 动作规则",
                 )
 
             # MIG-114-TLS-ACME
@@ -239,15 +273,30 @@ def migrate_config(cfg_in: dict) -> tuple[dict, list[dict], list[dict]]:
             if "domain_strategy" in ob:
                 ds = ob.pop("domain_strategy")
                 default_res = (cfg.get("route") or {}).get("default_domain_resolver")
-                res_server = default_res if isinstance(default_res, str) else "local"
-                if "domain_resolver" not in ob:
+                if isinstance(default_res, dict):
+                    default_res = default_res.get("server")
+                res_server = default_res if isinstance(default_res, str) and default_res else None
+                if res_server is None:
+                    # 只允许引用真实存在的 dns.servers 标签，否则产出悬空引用
+                    res_server = pick_dns_server_tag(cfg)
+                if res_server is None:
+                    warnings.append({
+                        "code": "MIG-112-NO-DNS-SERVER",
+                        "severity": "warning",
+                        "path": f"outbounds[{idx}].domain_strategy",
+                        "message": (
+                            "配置中没有带 tag 的 DNS 服务器，domain_strategy 无法迁移为 "
+                            "domain_resolver（1.15 要求 server 必填），该字段已被移除"
+                        ),
+                    })
+                elif "domain_resolver" not in ob:
                     ob["domain_resolver"] = {"server": res_server, "strategy": ds}
-                record(
-                    "MIG-112-DIAL-DOMAIN-STRATEGY",
-                    f"outbounds[{idx}].domain_strategy",
-                    f'"domain_strategy": "{ds}"',
-                    f'"domain_resolver": {{"server": "{res_server}", "strategy": "{ds}"}}',
-                )
+                    record(
+                        "MIG-112-DIAL-DOMAIN-STRATEGY",
+                        f"outbounds[{idx}].domain_strategy",
+                        f'"domain_strategy": "{ds}"',
+                        f'"domain_resolver": {{"server": "{res_server}", "strategy": "{ds}"}}',
+                    )
             kept_outbounds.append(ob)
         cfg["outbounds"] = kept_outbounds
 
@@ -381,14 +430,27 @@ def migrate_config(cfg_in: dict) -> tuple[dict, list[dict], list[dict]]:
                         "移除 1.14 废弃的 DNS 规则内联 strategy 选项",
                     )
                 if ("ip_cidr" in r or "ip_is_private" in r) and "match_response" not in r:
-                    r["match_response"] = True
-                    needs_evaluate_server = dns.get("final") or "remote"
-                    record(
-                        "MIG-114-DNS-RULE-LEGACY",
-                        r_path,
-                        "ip_cidr/ip_is_private 未设置 match_response",
-                        '补全 "match_response": true 并前置 evaluate 动作规则',
-                    )
+                    if needs_evaluate_server is None:
+                        # evaluate 的 server 必填，只能指向真实存在的 dns.servers 标签
+                        needs_evaluate_server = pick_dns_server_tag(cfg)
+                    if needs_evaluate_server is None:
+                        warnings.append({
+                            "code": "MIG-114-NO-EVALUATE-SERVER",
+                            "severity": "warning",
+                            "path": r_path,
+                            "message": (
+                                "ip_cidr/ip_is_private 匹配响应需要前置 evaluate 动作，"
+                                "但配置中没有带 tag 的 DNS 服务器，已跳过 match_response 迁移"
+                            ),
+                        })
+                    else:
+                        r["match_response"] = True
+                        record(
+                            "MIG-114-DNS-RULE-LEGACY",
+                            r_path,
+                            "ip_cidr/ip_is_private 未设置 match_response",
+                            f'补全 "match_response": true 并前置 evaluate 动作规则（server: "{needs_evaluate_server}"）',
+                        )
                 if "server" in r and "action" not in r:
                     r["action"] = "route"
                 new_dns_rules.append(r)

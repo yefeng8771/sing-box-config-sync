@@ -1,6 +1,6 @@
 # sing-box 跨版本演进权威知识库 (1.8 → 1.15 reF1nd-testing-next)
 
-> 文档基准：`reF1nd-testing-next` (`3cf2b01ce8eb`) | 锁定内核：`440f7a133539` | 上游规则：`Repcz/Tool` (`6dcec5663544`) | 模板：`pk-box` (`bac2f7a595f4`)
+> 文档基准：`reF1nd-testing-next` (`3cf2b01ce8eb`) | 锁定内核：`440f7a133539` | 上游规则：`Repcz/Tool` (`70fc1017a669`) | 模板：`pk-box` (`334679135181`)
 
 本知识库由 `build/extract_kb.py` 从上游官方文档 (`deprecated.zh.md`、`migration.zh.md`、`schema.json`) 与实战带注释模板 (`sources/pk-box`) 自动蒸馏生成，版本锚点取自 `.sync-meta.json` 与 `kernel.lock`，供 LLM / AI Skill / 自动化迁移器直接作为上下文使用。产物为确定性输出（不含生成时间戳），只在输入变化时更新。
 
@@ -676,21 +676,21 @@
 
 | 字段名 | 示例值 | 实战作用与排障解释 |
 | :--- | :--- | :--- |
-| `log` | `{` | 日志模块：控制日志级别、时间戳等输出行为 |
-| `level` | `"trace"` | 日志级别设为 trace，会输出最详细的调试信息（含内部状态、DNS 竞速过程），适合排查问题；日常稳定使用可改为 info 或 warn 以减少日志量 |
-| `timestamp` | `true` | 在每条日志前附加时间戳，便于对照事件发生顺序（尤其在调试 DNS race 和路由匹配时非常有用） |
-| `dns` | `{` | DNS 模块：定义 DNS 服务器、DNS 规则以及 DNS 缓存行为 |
-| `servers` | `[` | DNS 服务器列表，每个元素声明一个可用于解析的 DNS 后端 |
-| `type` | `"hosts"` | 服务器类型为 hosts，不从网络查询，而是直接返回 predefined 中预设的 IP |
-| `tag` | `"hosts_fix"` | 该服务器的标签为 hosts_fix，后续 server 或 domain_resolver 字段通过这个标签引用它 |
-| `predefined` | `{` | 静态映射表：键是域名，值是直接返回的 IP 列表 |
-| `cloudflare-dns.com` | `[` | 为 cloudflare-dns.com 预设 IP，避免解析这个 DoH 服务器域名时产生循环依赖 |
-| `dns.google` | `[` | 为 dns.google 预设 IP，理由同上：DoH 服务器域名不能再用 DoH 去解析自身 |
-| `raw.githubusercontent.com` | `[` | 为 GitHub raw 域名预设 IP，确保规则集下载不被 DNS 解析阻塞或污染 |
-| `type` | `"local"` | 类型为 local，调用操作系统提供的 DNS 解析（在 Android 上通常是系统 DNS 或 netd 解析器） |
-| `tag` | `"pkpk-dns"` | 标签为 pkpk-dns，后续国内域名、华为域名、微软/苹果中国域名等规则会指向这个服务器，实现“国内域名用本地 DNS 解析”的分流 |
-| `type` | `"https"` | 类型为 https，表示使用 DNS over HTTPS（DoH）协议进行查询[reference:3] |
-| `tag` | `"cf-dns"` | 标签为 cf-dns，供 DNS 规则和 final 字段引用 |
+| `tag` | `"hosts_fix"` | 唯一标识，其他规则通过此 tag 引用 |
+| `domain_resolver` | `"hosts_fix"` | 先用 hosts_fix 解析服务器域名 |
+| `rewrite_ttl` | `300` | 重写 TTL 为 300 秒（5 分钟） |
+| `action` | `"evaluate"` | 评估但不立即返回结果[reference:8] |
+| `server` | `"cf-dns"` | 使用 Cloudflare DoH |
+| `tag` | `"cf"` | 标记为 "cf"（旧版为 "final-cf"） |
+| `match_response` | `"cf"` | 匹配之前 evaluate 的 tag |
+| `tag` | `"gg"` | 旧版为 "final-gg" |
+| `speculative` | `true` | 推测式解析：缓存过期前提前刷新[reference:9] |
+| `tag` | `"q9"` | 旧版为 "final-q9" |
+| `tag` | `"ag"` | 旧版为 "final-ag" |
+| `auto_route` | `true` | 自动添加路由表[reference:12] |
+| `strict_route` | `true` | 严格路由，防止流量泄漏[reference:13] |
+| `udp_nat_max` | `4096` | UDP NAT 最大会话数 |
+| `stack` | `"mixed"` | 混合网络栈[reference:14] |
 
 ## 6. 1.15 标准契约生成范式（Best-Practice Skeleton）
 

@@ -1,8 +1,8 @@
 {
   "metadata": {
     "ref1nd_docs_commit": "3cf2b01ce8ebbf6070616125b38c866a0b350309",
-    "repcz_tool_commit": "6dcec56635443dde788ff5580f06b2797d146a2e",
-    "pk_box_commit": "bac2f7a595f4ea77023e2719b67bf445ca3908dd",
+    "repcz_tool_commit": "70fc1017a6693609528ec218a3bdb071ab78d7c4",
+    "pk_box_commit": "33467913518146274a93ccf26638b3c9f4acb1a0",
     "kernel_commit": "440f7a1335395897c655c959a38bc98bf0200309"
   },
   "schema_summary": {
@@ -695,154 +695,154 @@
   ],
   "pkbox_field_rationales": [
     {
-      "field": "log",
-      "value_sample": "{",
-      "rationale": "日志模块：控制日志级别、时间戳等输出行为",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "level",
-      "value_sample": "\"trace\"",
-      "rationale": "日志级别设为 trace，会输出最详细的调试信息（含内部状态、DNS 竞速过程），适合排查问题；日常稳定使用可改为 info 或 warn 以减少日志量",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "timestamp",
-      "value_sample": "true",
-      "rationale": "在每条日志前附加时间戳，便于对照事件发生顺序（尤其在调试 DNS race 和路由匹配时非常有用）",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "dns",
-      "value_sample": "{",
-      "rationale": "DNS 模块：定义 DNS 服务器、DNS 规则以及 DNS 缓存行为",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "servers",
-      "value_sample": "[",
-      "rationale": "DNS 服务器列表，每个元素声明一个可用于解析的 DNS 后端",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "type",
-      "value_sample": "\"hosts\"",
-      "rationale": "服务器类型为 hosts，不从网络查询，而是直接返回 predefined 中预设的 IP",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
       "field": "tag",
       "value_sample": "\"hosts_fix\"",
-      "rationale": "该服务器的标签为 hosts_fix，后续 server 或 domain_resolver 字段通过这个标签引用它",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "rationale": "唯一标识，其他规则通过此 tag 引用",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "predefined",
-      "value_sample": "{",
-      "rationale": "静态映射表：键是域名，值是直接返回的 IP 列表",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "domain_resolver",
+      "value_sample": "\"hosts_fix\"",
+      "rationale": "先用 hosts_fix 解析服务器域名",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "cloudflare-dns.com",
-      "value_sample": "[",
-      "rationale": "为 cloudflare-dns.com 预设 IP，避免解析这个 DoH 服务器域名时产生循环依赖",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "rewrite_ttl",
+      "value_sample": "300",
+      "rationale": "重写 TTL 为 300 秒（5 分钟）",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "dns.google",
-      "value_sample": "[",
-      "rationale": "为 dns.google 预设 IP，理由同上：DoH 服务器域名不能再用 DoH 去解析自身",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "action",
+      "value_sample": "\"evaluate\"",
+      "rationale": "评估但不立即返回结果[reference:8]",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "raw.githubusercontent.com",
-      "value_sample": "[",
-      "rationale": "为 GitHub raw 域名预设 IP，确保规则集下载不被 DNS 解析阻塞或污染",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "type",
-      "value_sample": "\"local\"",
-      "rationale": "类型为 local，调用操作系统提供的 DNS 解析（在 Android 上通常是系统 DNS 或 netd 解析器）",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "tag",
-      "value_sample": "\"pkpk-dns\"",
-      "rationale": "标签为 pkpk-dns，后续国内域名、华为域名、微软/苹果中国域名等规则会指向这个服务器，实现“国内域名用本地 DNS 解析”的分流",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "type",
-      "value_sample": "\"https\"",
-      "rationale": "类型为 https，表示使用 DNS over HTTPS（DoH）协议进行查询[reference:3]",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "tag",
+      "field": "server",
       "value_sample": "\"cf-dns\"",
-      "rationale": "标签为 cf-dns，供 DNS 规则和 final 字段引用",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "detour",
-      "value_sample": "\"📦 sing-box\"",
-      "rationale": "指定 DNS 查询流量从出站选择器“📦 sing-box”走代理，防止 DNS 泄漏并规避网络干扰；DNS 模块的 detour 用于指定该 DoH 请求从哪个出站发出",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "domain_resolver",
-      "value_sample": "\"hosts_fix\"",
-      "rationale": "指定解析 cloudflare-dns.com 这个域名时使用的解析器为 hosts_fix；因为 DoH 服务器本身也是域名，必须先解析它，这里用 hosts 静态解析避免自举循环[reference:5]",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
-    },
-    {
-      "field": "server",
-      "value_sample": "\"cloudflare-dns.com\"",
-      "rationale": "实际的 DoH 端点域名；sing-box 会自动构造 https://cloudflare-dns.com/dns-query 形式的请求",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "rationale": "使用 Cloudflare DoH",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
       "field": "tag",
-      "value_sample": "\"google-dns\"",
-      "rationale": "标签为 google-dns，供 Google 相关域名的 DNS 规则引用",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "value_sample": "\"cf\"",
+      "rationale": "标记为 \"cf\"（旧版为 \"final-cf\"）",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "detour",
-      "value_sample": "\"📦 sing-box\"",
-      "rationale": "查询流量同样走“📦 sing-box”代理选择器，避免直连暴露或受干扰",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "match_response",
+      "value_sample": "\"cf\"",
+      "rationale": "匹配之前 evaluate 的 tag",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "domain_resolver",
-      "value_sample": "\"hosts_fix\"",
-      "rationale": "用 hosts_fix 静态解析 dns.google 域名，避免 DoH 自举时的额外解析和潜在环路",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "tag",
+      "value_sample": "\"gg\"",
+      "rationale": "旧版为 \"final-gg\"",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "server",
-      "value_sample": "\"dns.google\"",
-      "rationale": "Google DoH 的端点域名",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "speculative",
+      "value_sample": "true",
+      "rationale": "推测式解析：缓存过期前提前刷新[reference:9]",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "rules",
-      "value_sample": "[",
-      "rationale": "DNS 规则列表：按顺序匹配，决定一个 DNS 查询交给哪个服务器处理，或执行特殊动作",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "tag",
+      "value_sample": "\"q9\"",
+      "rationale": "旧版为 \"final-q9\"",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "rule_set",
-      "value_sample": "[",
-      "rationale": "匹配条件为“命中以下任一规则集”",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "tag",
+      "value_sample": "\"ag\"",
+      "rationale": "旧版为 \"final-ag\"",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     },
     {
-      "field": "server",
-      "value_sample": "\"google-dns\"",
-      "rationale": "动作：将匹配的 DNS 查询路由到 google-dns（DoH over 代理）进行解析",
-      "source_file": "sources/pk-box/1.15.0-alpha.xxx/注解/1.15.0-alpha.13.json"
+      "field": "auto_route",
+      "value_sample": "true",
+      "rationale": "自动添加路由表[reference:12]",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "strict_route",
+      "value_sample": "true",
+      "rationale": "严格路由，防止流量泄漏[reference:13]",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "udp_nat_max",
+      "value_sample": "4096",
+      "rationale": "UDP NAT 最大会话数",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "stack",
+      "value_sample": "\"mixed\"",
+      "rationale": "混合网络栈[reference:14]",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "outbounds",
+      "value_sample": "[\"节点名称\"]",
+      "rationale": "TODO: 替换为实际节点标签",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "url",
+      "value_sample": "\"http:",
+      "rationale": "www.gstatic.com/generate_204\",",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "outbounds",
+      "value_sample": "[\"节点名称\"]",
+      "rationale": "TODO: 替换为实际节点标签",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "url",
+      "value_sample": "\"http:",
+      "rationale": "www.gstatic.com/generate_204\",",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "action",
+      "value_sample": "\"sniff\"",
+      "rationale": "嗅探连接协议（TLS、HTTP 等）",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "url",
+      "value_sample": "\"https:",
+      "rationale": "cdn.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/{tag}.srs\",",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "url",
+      "value_sample": "\"https:",
+      "rationale": "cdn.jsdelivr.net/gh/senshinya/singbox_ruleset@main/rule/{tag}/{tag}.srs\",",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "url",
+      "value_sample": "\"https:",
+      "rationale": "cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/{tag}.srs\",",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "url",
+      "value_sample": "\"https:",
+      "rationale": "cdn.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblocksingbox.srs\",",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
+    },
+    {
+      "field": "url",
+      "value_sample": "\"https:",
+      "rationale": "cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs\",",
+      "source_file": "sources/pk-box/注释/1.14.0-beta.3.json"
     }
   ]
 }

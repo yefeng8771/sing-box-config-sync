@@ -1,8 +1,8 @@
 {
   "summary": {
-    "total": 147,
+    "total": 148,
     "clean_115": 5,
-    "auto_migrated": 112,
+    "auto_migrated": 113,
     "unparseable_template": 30
   },
   "custom_redline_check": "PASS",
@@ -2087,6 +2087,20 @@
     },
     {
       "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.13.json",
+      "status": "auto-migratable",
+      "migrations_needed": 1,
+      "applied_rules": [
+        {
+          "rule_id": "MIG-111-SPECIAL-OUTBOUNDS",
+          "path": "outbounds[13]",
+          "before": "{\"type\": \"block\", \"tag\": \"❌ REJECT-DROP\"}",
+          "after": "移除特殊出站（路由规则改为 \"action\": \"reject\"）"
+        }
+      ],
+      "validation_issues": []
+    },
+    {
+      "file": "sources/pk-box/1.15.0-alpha.xxx/1.15.0-alpha.13优化版.json",
       "status": "auto-migratable",
       "migrations_needed": 1,
       "applied_rules": [

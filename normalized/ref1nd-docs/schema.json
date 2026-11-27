@@ -928,6 +928,8 @@
     "DNSRejectRCode": {
       "anyOf": [
         {
+          "maximum": 4095,
+          "minimum": -1,
           "type": "integer"
         },
         {
@@ -18462,9 +18464,7 @@
               "const": "route"
             },
             "fallback_delay": {
-              "maximum": 4294967295,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/$defs/Duration"
             },
             "network_strategy": {
               "enum": [
@@ -18541,9 +18541,7 @@
               "const": "route-options"
             },
             "fallback_delay": {
-              "maximum": 4294967295,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/$defs/Duration"
             },
             "network_strategy": {
               "enum": [
@@ -18619,9 +18617,7 @@
               "const": "bypass"
             },
             "fallback_delay": {
-              "maximum": 4294967295,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/$defs/Duration"
             },
             "network_strategy": {
               "enum": [

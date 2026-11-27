@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "ref1nd_docs_commit": "fc442cabee47c7f8234f7a1dec13688d6e193de8",
-    "repcz_tool_commit": "ef8142b74570df5d31860fae91a897a730a422c2",
+    "ref1nd_docs_commit": "c64522635efb6a15a241f96f2194ffa602f9a037",
+    "repcz_tool_commit": "6ede8c3193780daa6c4dbd6f705bbdabe75a609a",
     "pk_box_commit": "b8d6cbd219b06e6c9f242a85739da0a0d9b804a6",
     "kernel_commit": "8a2881e32843ef66c2cc289ca105535cf749cbbb"
   },
@@ -257,7 +257,7 @@
       "version_deprecated": "1.15.0",
       "version_removed": "1.17.0",
       "title": "TUN `stack` 参数",
-      "description": "TUN 的 `stack` 参数已废弃，并将在 sing-box 1.17.0 中被移除。 自 1.15.0 起，sing-tun 使用自有 TCP/IP stack，极限性能、能效以及内存占用均大幅领先于所有旧实现。 移除 `stack` 参数以使用，参阅[迁移指南](/zh/migration/#迁移-tun-stack)。",
+      "description": "TUN 的 `stack` 参数已废弃，并将在 sing-box 1.17.0 中被移除。 自 1.15.0 起，sing-tun 使用自有 TCP/IP stack，极限性能、能效以及内存占用均大幅领先于所有旧实现。 移除 `stack` 参数以使用，参阅[迁移指南](/zh/migration/#迁移-tun-stack)。 `gvisor` 和 `mixed` 栈需要 `with_gvisor` [构建标记](/zh/installation/build-from-source/#构建标记)，该标记已不再默认启用。",
       "migration_anchor": "/zh/migration/#迁移-tun-stack"
     },
     {

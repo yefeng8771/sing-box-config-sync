@@ -18486,21 +18486,6 @@
               "minimum": 0,
               "type": "integer"
             },
-            "tcp_prefix": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "items": {
-                    "maximum": 255,
-                    "minimum": 0,
-                    "type": "integer"
-                  },
-                  "type": "array"
-                }
-              ]
-            },
             "tls_fragment": {
               "type": "boolean"
             },
@@ -18558,21 +18543,6 @@
               "maximum": 65535,
               "minimum": 0,
               "type": "integer"
-            },
-            "tcp_prefix": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "items": {
-                    "maximum": 255,
-                    "minimum": 0,
-                    "type": "integer"
-                  },
-                  "type": "array"
-                }
-              ]
             },
             "tls_fragment": {
               "type": "boolean"
@@ -18638,21 +18608,6 @@
               "maximum": 65535,
               "minimum": 0,
               "type": "integer"
-            },
-            "tcp_prefix": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "items": {
-                    "maximum": 255,
-                    "minimum": 0,
-                    "type": "integer"
-                  },
-                  "type": "array"
-                }
-              ]
             },
             "tls_fragment": {
               "type": "boolean"
